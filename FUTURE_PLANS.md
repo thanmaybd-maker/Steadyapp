@@ -1,82 +1,57 @@
-# Steady: completion plan and future feature backlog
+# Steady completion plan
 
-Updated 6 October 2026. Continue the existing Gemini/GitHub checkpoint; do not
-restart from Milestone 1 or replace the app. `BLUEPRINT.md` is the v0.1 acceptance
-contract. This document records the next work and ideas; an idea is not a completed
-feature or authorization to expand v0.1.
+Updated 6 October 2026. The owner selected **expanded release first, then P2**.
+Specification 2.0 in `Steady_Documentation/` supersedes the earlier five-screen v0.1
+scope. Continue the existing native project and preserve its records and Git history.
 
-## Current checkpoint
+## Working checkpoints
 
-- Local JDK 17 and Android SDK are installed through `scripts/build.ps1`.
-- Launcher icon resources are present. MainActivity no longer opens the encrypted
-  database before navigation; public Safety help has a path independent of storage.
-- Encrypted portable backups, strict validated transactional restore, exact Markdown
-  preview, and Android SAF destination/source pickers are wired to actual records.
-- Safety plans, support contacts, keys and device settings are excluded from portable
-  recovery. Destination Safety survives restore; imported timers stay stopped.
-- Baseline `be3d20e` passed assembleDebug, 10 unit tests, lint (0 errors, 42 warnings)
-  and 4 connected storage/recovery tests. Its APK was installed and launched on the
-  Xiaomi 14, Android 16/API 36, HyperOS OS3.0.304.0.WNCINXM.
-- This checkpoint adds persisted timer transitions with generation checks, completion
-  deduplication, boot/clock reconciliation, contextual notification permission,
-  accessible Break controls, encrypted preference storage and explicit migration
-  2 to 3. Code checkpoint `a36e6da` passed assembleDebug, all 14 unit tests and
-  lint (0 errors, 41 warnings). Device regression results are recorded in the
-  checkpoint evidence; timer delivery and upgrade migration acceptance remain open.
+- `c498d4c`: original local delivery baseline, pushed to the authoritative repository.
+- `ecfe758`: supplied specification pack preserved unchanged.
+- `26c5cea`: encrypted expanded data model, explicit migration 3 to 4 and independent Safety store.
+- `940394c`: five expanded tabs, onboarding, task/habit editors, actual-time activity controls,
+  health records, period review and platform authentication. Build/unit/lint passed; phone install
+  and launch succeeded without clearing data.
+- `e082f01`: organiser-only typed portable recovery, scope preview, date/category Markdown,
+  Safety contact editor and historical-zone corrections. Host build/unit/lint/test packaging passed.
+  Acceptance evidence lives in `docs/evidence/`; code existing is not the same as every criterion passing.
 
-## Finish v0.1 first
+## Complete expanded P0 acceptance
 
-1. **Verification:** finish host/device regression checks for the latest changes.
-   Test migration 2 to 3 preserving existing records, missing key/partial key recovery,
-   timer pause/resume/stale callbacks and exactly-once completion with synthetic data.
-2. **Today:** persist pause, complete shutdown, inject clock and logical-day settings,
-   retain creation metadata and draft input on failed/concurrent saves. Keep Minimum
-   day practical without scores, pressure or automatic deletion.
-3. **Safety:** editable optional private sections and ordered contacts, reviewed/follow-up
-   status, clear storage errors, safe dialer failure handling, and public help available
-   while locked or storage is unavailable. Never place a test emergency call.
-4. **Access and privacy:** optional device credential/biometric lock with fallback,
-   recents privacy, complete local deletion even when storage cannot open, and tested
-   restore/export cancellation and provider failures. Preserve private drafts on error.
-5. **Break:** selectable and previewable sound/haptic/local speech, clear supported
-   capability labels, persisted custom durations, and measured Xiaomi screen-off,
-   idle, process recreation, denial/revocation, clock change and reboot behaviour.
-   State limits for force-stop, DND, volume and OEM battery restrictions honestly.
-6. **Review:** chosen week end, seven logical days with factual missingness/evidence,
-   five indicators and four questions, safe loading/saving and draft preservation.
-7. **Food reference:** local preference/avoid-food filtering, resource strings,
-   accessible sheet and local speech where available. Avoid medical recommendations.
-8. **Accessibility:** resources for all visible strings, labelled essential controls
-   at least 56 dp, maximum text/display reflow, TalkBack order/focus, contrast,
-   insets, dark/high-contrast and softer theme, and non-visual alternatives.
-9. **Release evidence:** refresh `docs/evidence/m01.md` through `m08.md`, dependency
-   permission/licence notices, merged no-INTERNET manifest, APK checksum/signing
-   identity, actual phone/settings and remaining limits. Install the verified update
-   without clearing existing user data. Mark complete only when criteria pass.
+1. Finish routine anchors, editable Minimum suggestions, dashboard card sizing, subject/topic tools,
+   interval/strength templates and rest timers. Persist configuration and actual history.
+2. Finish reminders with quiet hours, a maximum optional daily budget, Pause suppression and no catch-up.
+   Preserve exact care instructions. Finish contextual cue settings and Pocket Reset next-action editing.
+3. Add editable bundled food references with reviewed provenance, and expose capability states clearly.
+4. Complete draft/process recreation, authentication cancellation, storage/key failures, local deletion,
+   provider cancellation/failure and migration scenarios. Private Safety must remain structurally excluded.
+5. Verify exact totals, history corrections, archived habits, note export and interrupted restore.
+6. Run synthetic Compose/device accessibility checks, maximum text, TalkBack, theme contrast,
+   screen-off/Doze/denial/revocation/clock/reboot scenarios and ten-year data/performance measurements.
+7. Freeze release identity, licences, no-INTERNET manifest, native/page alignment, clean build,
+   artifact hash and install/update evidence. Reconcile every source point before declaring P0 complete.
 
-## Future ideas for the user's next planning session
+## P1 capability gates
 
-These are candidates to choose and scope after v0.1; none is implemented here.
+Phone steps, active GPS, Usage Access, optional app interception and local ambient audio
+ship only after their own device, permission, lifecycle and licence gates pass. Unsupported
+capabilities must be plainly unavailable or deferred; they must never display simulated measurements.
+No sensor or location service is enabled in the current checkpoint. Manual logging remains available.
 
-| Area | Candidate feature | Guardrail / acceptance question |
-| --- | --- | --- |
-| Planning | Reusable task templates and optional recurring routines | Can defaults help without expanding the daily workload? |
-| Fast entry | Offline quick capture and app shortcuts | Does input survive interruption and remain private? |
-| Home screen | Optional Today and timer widgets | Hide personal text by default; keep Safety private. |
-| Timers | Named study/build presets and optional gentle break sequences | User controls cue budget; no burst of missed reminders. |
-| Review | Search, date navigation and simple descriptive trends | No personality scoring, guilt or inferred health states. |
-| Accessibility | User-selected text/spacing/contrast presets and local languages | Test large text, TalkBack and offline speech availability. |
-| Recovery | Backup reminders, archive compatibility fixtures and recovery drills | User initiates storage; never include private Safety data. |
-| Long-term use | Retention controls, history performance and schema evolution | Never silently erase records or use destructive migrations. |
-| Food | Editable offline favourites and shopping notes | Avoid medical/allergy safety claims; remain optional. |
-| Quality | Automated regression checks and broader Android/OEM testing | Publish evidence and limits; one phone does not prove all devices. |
+## P2 after expanded release
 
-## How to add more features
+- Learn: retrieval attempts, correction, topic states, spaced review and optional exam-answer structure.
+- Build: six-line project contracts, acceptance gates, freeze/rehearsal/fallback and reviewable agent briefs.
+- People: private callbacks and observation/request notes, with no buddy network or automatic messages.
+- Money Guard: optional discretionary caps, renewals and a user-controlled purchase waiting period.
+- Care/debrief: factual user records and explicit scoped summaries, without medical inference.
+- Capture: share target, then separately permissioned voice/OCR and integration conflict rules.
+- Connected AI: a separate variant and data-flow contract; exact selected-field preview, editable proposals,
+  explicit apply, cancellation and quotas. Safety/contacts/keys never enter prompts. No provider credentials
+  or valid connected service have been supplied.
+- OpenGym/Vital3D: obtain exact source links and verify licences before any source or asset reuse.
+- Deeper Obsidian/calendar/health integrations: establish ownership, permissions, deduplication and conflicts.
 
-Record each request here with the concrete user problem, proposed screen, fields
-stored, privacy implications, acceptance examples, dependencies/licences and tests.
-Prioritise essential fixes before convenience features. Preserve a working Git
-checkpoint before substantial changes, keep the existing five-screen structure
-unless the user deliberately changes scope, and use synthetic verification data.
-Internet, telemetry, medical logic, accounts, automatic contact actions, posting,
-purchases and cloud sharing remain outside the current architecture.
+For each feature, record the user task, fields, export policy, accessibility/error states and acceptance
+evidence. Use synthetic fixtures; retain working checkpoints. No task is complete solely because it compiles.
+
