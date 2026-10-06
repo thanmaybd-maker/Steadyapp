@@ -181,7 +181,14 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
         DialogSurface { ExpandedPage {
             SecondaryAction(R.string.safety_action, onClick = onSafety)
             SecondaryAction(R.string.close_keep_draft, onClick = onClose)
-            SectionCard(title) { StateMessages(state); body(form, savedClose) }
+            SectionCard(title) {
+                StateMessages(state)
+                when {
+                    key !in drafts || key in state.draftLoading -> Text(stringResource(R.string.draft_loading))
+                    key in state.draftLoadFailed -> SecondaryAction(R.string.retry) { model.retryDraft(key) }
+                    else -> body(form,savedClose)
+                }
+            }
         } }
     }
 }

@@ -104,7 +104,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
                 kotlinx.serialization.json.Json { prettyPrint=true }.encodeToString(kotlinx.serialization.json.JsonElement.serializer(),row)
             }
         }
-        var page by remember(preview) { mutableStateOf(0) }
+        var page by remember(preview) { mutableIntStateOf(0) }
         AlertDialog(onDismissRequest={ if(!state.isProcessing) viewModel.cancelLegacy() },
             title={ Text(stringResource(R.string.legacy_og_preview)) },
             text={ Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {

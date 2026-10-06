@@ -27,7 +27,7 @@ import java.time.LocalDate
     var habitEditor by remember { mutableStateOf<HabitOccurrence?>(null) }
     var chartDay by remember(period.start, period.end) { mutableStateOf<LocalDate?>(null) }
     LaunchedEffect(Unit) { val end = period.end; model.reload(end.minusDays(6), end) }
-    fun select(end: LocalDate) { endText = end.toString(); model.reload(if (mode == "MONTH") end.withDayOfMonth(1) else end.minusDays(6), end) }
+    fun select(end: LocalDate) { endText = end.toString(); model.reload(when(mode) { "DAY" -> end; "MONTH" -> end.withDayOfMonth(1); else -> end.minusDays(6) }, end) }
     ExpandedPage {
         StateMessages(state)
         SectionCard(R.string.review_period) {
@@ -36,17 +36,18 @@ import java.time.LocalDate
             }
             androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
             androidx.compose.foundation.layout.Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly) {
-                androidx.compose.material3.TextButton(modifier = androidx.compose.ui.Modifier.heightIn(min = 56.dp), onClick = { select(if (mode == "MONTH") period.end.minusMonths(1) else period.end.minusWeeks(1)) }) { Text(stringResource(R.string.review_previous)) }
+                androidx.compose.material3.TextButton(modifier = androidx.compose.ui.Modifier.heightIn(min = 56.dp), onClick = { select(when(mode) { "DAY" -> period.end.minusDays(1); "MONTH" -> period.end.minusMonths(1); else -> period.end.minusWeeks(1) }) }) { Text(stringResource(R.string.review_previous)) }
                 androidx.compose.material3.TextButton(modifier = androidx.compose.ui.Modifier.heightIn(min = 56.dp), onClick = {
                     mode = if (mode == "WEEK") "MONTH" else "WEEK"
                     val end = LocalDate.parse(endText)
                     model.reload(if (mode == "MONTH") end.withDayOfMonth(1) else end.minusDays(6), end)
                 }) { Text(stringResource(if (mode == "WEEK") R.string.review_view_month else R.string.review_view_week)) }
-                androidx.compose.material3.TextButton(modifier = androidx.compose.ui.Modifier.heightIn(min = 56.dp), onClick = { select(if (mode == "MONTH") period.end.plusMonths(1) else period.end.plusWeeks(1)) }) { Text(stringResource(R.string.review_next)) }
+                androidx.compose.material3.TextButton(modifier = androidx.compose.ui.Modifier.heightIn(min = 56.dp), onClick = { select(when(mode) { "DAY" -> period.end.plusDays(1); "MONTH" -> period.end.plusMonths(1); else -> period.end.plusWeeks(1) }) }) { Text(stringResource(R.string.review_next)) }
             }
             PrimaryAction(R.string.current_period) { model.action({ endText = model.repository.logicalDay().toString() }, success = null,
                 after = { select(LocalDate.parse(endText)) }) }
             SecondaryAction(R.string.choose_review_date) { calendar = true }
+            SecondaryAction(R.string.review_view_day) { mode="DAY"; select(period.end) }
         }
         SectionCard(R.string.review_summary) {
             if("FOCUS" in visibleCards) {
@@ -130,18 +131,26 @@ import java.time.LocalDate
         val existing = period.reflection
         LaunchedEffect(key) { model.openDraft(key, mapOf("helped" to existing?.helped.orEmpty(), "demanding" to existing?.demanding.orEmpty(),
             "evidence" to existing?.evidence.orEmpty(), "adjustment" to existing?.adjustment.orEmpty(), "highlight" to existing?.highlight.orEmpty(),
-            "obstacle" to existing?.obstacle.orEmpty(), "tomorrow" to existing?.tomorrow.orEmpty())) }
+            "obstacle" to existing?.obstacle.orEmpty(), "tomorrow" to existing?.tomorrow.orEmpty(),
+            "mood" to (existing?.mood?.toString() ?: ""),"energy" to (existing?.energy?.toString() ?: ""))) }
         val drafts by model.drafts.collectAsState()
         val form = drafts[key] ?: emptyMap()
         SectionCard(R.string.reflection_title) {
+            if(key !in drafts || key in state.draftLoading) { Text(stringResource(R.string.draft_loading)); return@SectionCard }
+            if(key in state.draftLoadFailed) { SecondaryAction(R.string.retry) { model.retryDraft(key) }; return@SectionCard }
             listOf("helped" to R.string.reflection_helped, "demanding" to R.string.reflection_demanding,
                 "evidence" to R.string.reflection_evidence, "adjustment" to R.string.reflection_adjustment,
                 "highlight" to R.string.reflection_highlight, "obstacle" to R.string.reflection_obstacle, "tomorrow" to R.string.reflection_tomorrow).forEach { (field, label) ->
                 TextInput(form[field].orEmpty(), label, { model.field(key, field, it) }, 2)
             }
+            Text(stringResource(R.string.reflection_optional_ratings))
+            TextInput(form["mood"].orEmpty(),R.string.reflection_mood_optional,{ model.field(key,"mood",it) })
+            TextInput(form["energy"].orEmpty(),R.string.reflection_energy_optional,{ model.field(key,"energy",it) })
             PrimaryAction(R.string.save_reflection, !state.busy) { model.action({ model.repository.saveReflection(Reflection(existing?.id ?: model.repository.newId(),
                 period.start.toString(), period.end.toString(), form["helped"].orEmpty(), form["demanding"].orEmpty(), form["evidence"].orEmpty(), form["adjustment"].orEmpty(),
-                form["highlight"].orEmpty(), form["obstacle"].orEmpty(), form["tomorrow"].orEmpty(), updated = model.repository.clock.millis())) }) }
+                form["highlight"].orEmpty(), form["obstacle"].orEmpty(), form["tomorrow"].orEmpty(),
+                mood=com.thanu.steady.domain.ReflectionDraftRules.rating(form["mood"].orEmpty()),
+                energy=com.thanu.steady.domain.ReflectionDraftRules.rating(form["energy"].orEmpty()),updated = model.repository.clock.millis())) }) }
         }
     }
     if(calendar) {

@@ -17,7 +17,8 @@ data class ExpandedUiState(val period: PeriodSnapshot? = null, val loading: Bool
     val busy: Boolean = false, val message: Int? = null, val error: Int? = null,
     val activeMillis: Long = 0, val scratchpad: String = "", val noteStatus: Int = R.string.saved,
     val logicalToday: LocalDate? = null, val interval: com.thanu.steady.domain.IntervalProgram? = null,
-    val rest: com.thanu.steady.domain.WorkoutRest? = null, val restRemaining: Long = 0)
+    val rest: com.thanu.steady.domain.WorkoutRest? = null, val restRemaining: Long = 0,
+    val draftLoading: Set<String> = emptySet(), val draftLoadFailed: Set<String> = emptySet())
 
 class ExpandedViewModel(val repository: ExpandedRepository, private val activity: ActivityRepository,
     private val preferences: PreferencesRepository, private val alarms: ActivityAlarmAdapter,
@@ -37,6 +38,8 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     val drafts = _drafts.asStateFlow()
     private val draftJobs = mutableMapOf<String, Job>()
     private val draftVersions = mutableMapOf<String, Int>()
+    private val draftLoads = mutableMapOf<String,Job>()
+    private var draftEpoch = 0
     private val _ambient = MutableStateFlow(AmbientPreferences())
     val ambient = _ambient.asStateFlow()
     private val _ambientSaved = MutableStateFlow(true)
@@ -63,23 +66,31 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
         }
     }
     fun openDraft(key: String, initial: Map<String, String>) {
-        if (_drafts.value.containsKey(key)) return
-        _drafts.update { it + (key to initial) }
+        if(key in _state.value.draftLoading || _drafts.value.containsKey(key) && key !in _state.value.draftLoadFailed) return
+        if(!_drafts.value.containsKey(key)) _drafts.update { it + (key to initial) }
+        _state.update { it.copy(draftLoading=it.draftLoading+key,draftLoadFailed=it.draftLoadFailed-key) }
         val version = draftVersions[key] ?: 0
-        viewModelScope.launch {
+        val epoch = draftEpoch
+        draftLoads[key] = viewModelScope.launch {
             try {
                 val stored = withContext(Dispatchers.IO) { repository.note("draft:$key") }
-                if (stored != null && (draftVersions[key] ?: 0) == version && _drafts.value.containsKey(key)) {
+                if (stored != null && draftEpoch == epoch && (draftVersions[key] ?: 0) == version && _drafts.value.containsKey(key)) {
                     val values = Json.decodeFromString<Map<String, String>>(stored.text)
-                    _drafts.update { it + (key to values) }
+                    _drafts.update { it + (key to (initial + values)) }
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { _state.update { it.copy(error = R.string.draft_load_failed) } }
+            catch (_: Exception) { if(draftEpoch == epoch) _state.update { it.copy(error = R.string.draft_load_failed,draftLoadFailed=it.draftLoadFailed+key) } }
+            finally { if(draftEpoch == epoch && draftLoads[key] === coroutineContext[Job]) {
+                draftLoads.remove(key); _state.update { it.copy(draftLoading=it.draftLoading-key) }
+            } }
         }
     }
+    fun retryDraft(key: String) { openDraft(key,_drafts.value[key] ?: emptyMap()) }
     fun field(key: String, name: String, value: String) {
-        if (value.length > 100_000) return
+        if (value.length > 100_000 || key in _state.value.draftLoading || key in _state.value.draftLoadFailed) return
         draftVersions[key] = (draftVersions[key] ?: 0) + 1
+        draftLoads.remove(key)?.cancel()
+        _state.update { it.copy(draftLoading=it.draftLoading-key) }
         val values = (_drafts.value[key] ?: emptyMap()) + (name to value)
         _drafts.update { it + (key to values) }
         draftJobs[key]?.cancel()
@@ -92,6 +103,7 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     }
     fun clearDraft(key: String) {
         draftVersions[key] = (draftVersions[key] ?: 0) + 1
+        _state.update { it.copy(draftLoadFailed=it.draftLoadFailed-key) }
         draftJobs.remove(key)?.cancel()
         viewModelScope.launch {
             try { withContext(Dispatchers.IO) { repository.deleteNote("draft:$key") }; _drafts.update { it - key } }
@@ -315,11 +327,12 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     fun editHistory(id: String, millis: Long, note: String, effort: Int?, after: () -> Unit) = action({ activity.editHistory(id, millis, note, effort) }, after = after)
     fun deleteHistory(id: String) = action({ activity.deleteHistory(id) })
     fun afterRecovery() {
+        draftEpoch++; draftLoads.values.forEach { it.cancel() }; draftLoads.clear()
         noteSave?.cancel(); draftJobs.values.forEach { it.cancel() }; draftJobs.clear()
         ambientVersion++; ambientSave?.cancel(); audioSoundscapeEngine.stop()
         loadAmbient()
         _drafts.value = emptyMap(); noteLoaded = false; noteSession = null
-        _state.update { it.copy(scratchpad = "",noteStatus = R.string.saved) }
+        _state.update { it.copy(scratchpad = "",noteStatus = R.string.saved,draftLoading=emptySet(),draftLoadFailed=emptySet()) }
         reload()
     }
     override fun onCleared() {

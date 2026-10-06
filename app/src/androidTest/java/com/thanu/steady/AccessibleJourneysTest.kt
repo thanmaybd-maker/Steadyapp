@@ -319,6 +319,31 @@ class AccessibleJourneysTest {
         compose.onNodeWithText(completed).performScrollTo().assertIsDisplayed()
     }
 
+    @Test fun dailyReviewRetainsProseAndOptionalRatingsAfterInvalidInputAtTwoTimesText() {
+        val day="2026-01-05"
+        runBlocking(Dispatchers.IO) {
+            repository.saveProfile(ExpandedProfile(onboarded=true,palette="DAYBOOK",theme="DARK",textScale=2f,reducedMotion=true))
+            repository.saveReflection(Reflection(UUID.randomUUID().toString(),day,day,helped="Synthetic daily prose",mood=3,energy=4,updated=clock.millis()))
+        }
+        compose.setContent {
+            val state by model.state.collectAsState()
+            state.period?.let { SteadyTheme(it.profile) { ExpandedReview(model,state,{}) } }
+        }
+        button(R.string.review_view_day).performScrollTo().performClick()
+        compose.waitUntil(10000) { model.state.value.period?.start?.toString() == day && model.state.value.period?.end?.toString() == day }
+        field(R.string.reflection_helped).performScrollTo().assertTextContains("Synthetic daily prose")
+        field(R.string.reflection_energy_optional).performScrollTo().performTextReplacement("6")
+        button(R.string.save_reflection).performScrollTo().performClick()
+        compose.waitUntil(10000) { model.state.value.error != null && !model.state.value.busy }
+        field(R.string.reflection_energy_optional).performScrollTo().assertTextContains("6").performTextReplacement("2")
+        button(R.string.save_reflection).performScrollTo().performClick()
+        compose.waitUntil(10000) { !model.state.value.busy && model.state.value.period?.reflection?.energy == 2 }
+        runBlocking(Dispatchers.IO) {
+            val saved=repository.snapshot(LocalDate.parse(day),LocalDate.parse(day)).reflection!!
+            assertEquals("Synthetic daily prose",saved.helped); assertEquals(3,saved.mood); assertEquals(2,saved.energy)
+        }
+    }
+
     private fun waterJourney(palette: String, theme: String, textScale: Float) {
         runBlocking(Dispatchers.IO) { repository.saveProfile(ExpandedProfile(onboarded = true,
             palette = palette, theme = theme, textScale = textScale, reducedMotion = true,

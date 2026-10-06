@@ -334,6 +334,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
     suspend fun saveCareLog(log: CareLog) = provider().expandedDao().save(log)
     suspend fun saveReflection(value: Reflection) {
         require(!LocalDate.parse(value.endDay).isBefore(LocalDate.parse(value.startDay)))
+        require((value.mood == null || value.mood in 1..5) && (value.energy == null || value.energy in 1..5))
         require(listOf(value.helped, value.demanding, value.evidence, value.adjustment, value.highlight, value.obstacle, value.tomorrow).all { it.length <= 100_000 })
         val db = provider()
         db.withTransaction { val old = db.expandedDao().reflection(value.startDay, value.endDay)

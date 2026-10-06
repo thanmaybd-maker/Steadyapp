@@ -1,0 +1,7 @@
+<resources>
+    <string name="draft_loading">Loading your saved draft…</string>
+    <string name="review_view_day">View one day</string>
+    <string name="reflection_mood_optional">Mood, optional (1–5)</string>
+    <string name="reflection_energy_optional">Energy, optional (1–5)</string>
+    <string name="reflection_optional_ratings">Your own optional ratings. Leave blank to keep no rating. These are not health measurements or scores.</string>
+</resources>

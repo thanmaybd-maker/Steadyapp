@@ -7,12 +7,12 @@
     <string name="legacy_og_policy">Legacy dates use calendar days in %1$s, without today’s logical-day boundary.</string>
     <string name="legacy_og_row">Record %1$d of %2$d</string>
     <string name="legacy_og_apply">Append eligible records</string>
-    <string name="legacy_og_result">Added %1$d records. Kept or previously imported: %2$d.</string>
+    <string name="legacy_og_result">Records added: %1$d. Kept or previously imported: %2$d.</string>
     <string name="legacy_og_success">OG organiser import saved.</string>
     <string name="legacy_og_invalid">This OG file is unreadable, malformed, unsupported or exceeds the 5 MB / 5,000-record limit. Existing records were kept.</string>
     <string name="legacy_og_failed">Import was not saved. Existing records and the preview were kept. You can retry.</string>
-    <string name="legacy_og_reported_seconds">OG reported duration: %1$d seconds. Calendar date only; excluded from measured-time graphs.</string>
-    <string name="legacy_og_reported_total">OG reported study duration in this range: %1$d minutes. Separate from measured-time totals.</string>
+    <string name="legacy_og_reported_seconds">OG reported duration (seconds): %1$d. Calendar date only; excluded from measured-time graphs.</string>
+    <string name="legacy_og_reported_total">OG reported study duration in this range (minutes): %1$d. Separate from measured-time totals.</string>
     <string name="legacy_og_correction">This legacy duration has no measured intervals. Saving a correction creates an owner-entered interval at its calendar anchor and includes it in duration graphs.</string>
     <string name="legacy_og_food_unverified">OG recipe: diet and benefit claims are unverified. Review ingredients before use.</string>
 </resources>
