@@ -74,6 +74,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
             }
             "RINGS" -> if (mode != "PAUSED") SectionCard(R.string.today_summaries) {
                 DashboardMetrics(period,onFocus,onHealth) { editor = "habit" }
+                RecordedMiniMatrix(model,state,onSafety)
             }
             "TIMELINE" -> if ("PLAN" in period.profile.modules.split(',')) SectionCard(R.string.timeline_title) {
                 PrimaryAction(R.string.add_task) { editedTask = null; editor = "task" }

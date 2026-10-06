@@ -152,7 +152,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
             if (foods.isEmpty()) Text(stringResource(R.string.food_empty))
             foods.forEach { recipe ->
                 Text(recipe.title, style = MaterialTheme.typography.titleMedium)
-                RecipeContextSummary(model,recipe)
+                RecipeContextSummary(model,recipe,state.busy)
                 Text(recipe.ingredients); Text(recipe.instructions)
                 recipe.prepMinutes?.let { Text(stringResource(R.string.preparation_minutes, it)) }
                 Text(recipe.budget)

@@ -12,11 +12,11 @@ import java.time.LocalTime
 val mealTypeChoices = listOf("" to R.string.meal_type_optional,"BREAKFAST" to R.string.meal_breakfast,
     "LUNCH" to R.string.meal_lunch,"DINNER" to R.string.meal_dinner,"SNACK" to R.string.meal_snack)
 
-@Composable fun RecipeContextSummary(model: ExpandedViewModel, recipe: FoodIdeaRecord) {
+@Composable fun RecipeContextSummary(model: ExpandedViewModel, recipe: FoodIdeaRecord, saving: Boolean) {
     var context by remember(recipe.id) { mutableStateOf<RecipeContext?>(null) }
     var failed by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
-    LaunchedEffect(recipe.id,recipe.updated,retry) {
+    LaunchedEffect(recipe.id,recipe.updated,saving,retry) {
         try { context=withContext(Dispatchers.IO) { model.repository.recipeContext(recipe.id) }; failed=false }
         catch(cancelled: CancellationException) { throw cancelled }
         catch(_: Exception) { failed=true }

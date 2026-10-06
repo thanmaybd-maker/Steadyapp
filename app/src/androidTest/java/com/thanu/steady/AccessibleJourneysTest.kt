@@ -136,7 +136,7 @@ class AccessibleJourneysTest {
                 val state by model.state.collectAsState()
                 if(state.period != null) {
                     if(stage == "recipe") FoodEditor(model,state,null,{}) { stage="plan" }
-                    else state.period!!.foods.singleOrNull()?.let { recipe -> MealPlanEditor(model,state,recipe,{}) { stage="closed" } }
+                    else if(stage == "plan") state.period!!.foods.singleOrNull()?.let { recipe -> MealPlanEditor(model,state,recipe,{}) { stage="closed" } }
                 }
             }
         }
@@ -162,6 +162,34 @@ class AccessibleJourneysTest {
         val plan = runBlocking(Dispatchers.IO) { db.expandedDao().tasks("2026-01-05","2026-01-05").single() }
         assertEquals("FOOD",plan.category); assertEquals(780,plan.timeMinutes)
         assertTrue(runBlocking(Dispatchers.IO) { db.expandedDao().meals("2026-01-05","2026-01-05").isEmpty() })
+    }
+
+    @Test fun recordedMiniMatrixOpensOnlySupportingRecordsAtDoubleText() {
+        runBlocking(Dispatchers.IO) {
+            repository.saveWater(WaterLog(repository.newId(),"2026-01-05",250,clock.millis(),"UTC",240))
+            val focus = ActivitySession(repository.newId(),"FOCUS","STUDY","Synthetic matrix focus",state="STOPPED",
+                activeMillis=120000,started=clock.millis(),ended=clock.millis()+120000,zone="UTC",boundary=240,updated=clock.millis())
+            db.expandedDao().save(focus)
+            db.expandedDao().save(ActivitySegment(repository.newId(),focus.id,clock.millis(),clock.millis()+120000,0,120000,120000,"UTC",240))
+            repository.saveProfile(ExpandedProfile(onboarded=true,palette="DAYBOOK",theme="DARK",textScale=2f,reducedMotion=true))
+        }
+        model.reload()
+        compose.setContent {
+            SteadyTheme(ExpandedProfile(palette="DAYBOOK",theme="DARK",textScale=2f,reducedMotion=true)) {
+                val state by model.state.collectAsState()
+                ExpandedPage { if(state.period != null) RecordedMiniMatrix(model,state,{}) }
+            }
+        }
+        compose.waitUntil(10000) { model.state.value.period?.water?.size == 1 && model.state.value.period?.sessions?.size == 1 }
+        compose.onNode(hasText(compose.activity.getString(R.string.recorded_matrix_open,label(R.string.water_title))) and hasClickAction()).performScrollTo().performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.water_serving,250)).assertIsDisplayed()
+        button(R.string.close_action).performScrollTo().performClick()
+        compose.onNode(hasText(compose.activity.getString(R.string.recorded_matrix_open,label(R.string.focus_tab))) and hasClickAction()).performScrollTo().performClick()
+        compose.onNodeWithText("Synthetic matrix focus").assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.actual_seconds,120L)).assertIsDisplayed()
+        button(R.string.close_action).performScrollTo().performClick()
+        compose.onNode(hasText(compose.activity.getString(R.string.recorded_matrix_open,label(R.string.recorded_matrix_rest))) and hasClickAction()).performScrollTo().performClick()
+        compose.onNodeWithText(label(R.string.recorded_matrix_empty)).assertIsDisplayed()
     }
 
     @Test fun kineticWaterShortcutAndUndoChangeStoredServings() = waterJourney("KINETIC", "LIGHT", 1f)
