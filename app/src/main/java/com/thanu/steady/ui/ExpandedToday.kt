@@ -16,6 +16,11 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 fun focusMillis(period: PeriodSnapshot): Long = activityMillis(period,"FOCUS")
+fun completedInPeriod(session: ActivitySession, period: PeriodSnapshot): Boolean {
+    if(session.state !in setOf("STOPPED","COMPLETED") || session.activeMillis <= 0 || session.ended == null) return false
+    val day = LogicalDayPolicy().getLogicalDay(Instant.ofEpochMilli(session.ended),ZoneId.of(session.zone),session.boundary)
+    return day in period.start..period.end
+}
 fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null): Long {
     val ids = period.sessions.filter { it.type == type && it.state != "DISCARDED" && (subject == null || it.subjectId == subject) }.map { it.id }.toSet()
     val pieces = period.segments.filter { it.sessionId in ids && it.activeMillis > 0 }.mapNotNull { segment ->
@@ -46,13 +51,21 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
     ExpandedPage {
         Text(if (period.profile.displayName.isBlank()) stringResource(R.string.today_heading) else
             stringResource(R.string.greeting_name, period.profile.displayName), style = MaterialTheme.typography.headlineLarge)
-        Text(day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)))
+        Text(if(period.profile.dateStyle == "ISO") day.toString() else day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)))
         StateMessages(state)
         ChoiceList(mode, listOf("NORMAL" to R.string.normal_day, "MINIMUM" to R.string.minimum_day, "PAUSED" to R.string.pause_day), model::mode)
         if (mode == "MINIMUM") Text(stringResource(R.string.minimum_description))
         if (mode == "PAUSED") Text(stringResource(R.string.pause_description))
         if (mode != "NORMAL") SecondaryAction(R.string.show_optional) { optionalShown = !optionalShown }
-        period.profile.dashboard.split(',').forEach { card -> when (card) {
+        period.profile.dashboard.split(',').forEach { card -> CompositionLocalProvider(LocalRoomyCard provides (card in period.profile.wideCards.split(','))) { when (card) {
+            "ROUTINES" -> if(mode != "PAUSED" && "HABITS" in period.profile.modules.split(',')) SectionCard(R.string.routine_anchors) {
+                Text(stringResource(R.string.routine_examples))
+                listOf(Triple(R.string.add_study_anchor,R.string.study_anchor_title,10.0),
+                    Triple(R.string.add_build_anchor,R.string.build_anchor_title,10.0),
+                    Triple(R.string.add_movement_anchor,R.string.movement_anchor_title,5.0)).forEach { (label,title,target) ->
+                    SecondaryAction(label,!state.busy) { editor = "anchor:$title:${target.toInt()}" }
+                }
+            }
             "NEXT" -> SectionCard(R.string.next_action_title) {
                 Text(daySettings?.nextAction?.ifBlank { stringResource(R.string.next_empty) } ?: stringResource(R.string.next_empty))
                 PrimaryAction(R.string.edit_next_action) { editor = "next" }
@@ -105,6 +118,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
                     }
                     SecondaryAction(if (occurrence.state == "SKIPPED") R.string.unskip_habit else R.string.skip_habit, !state.busy) { model.action({ model.repository.skipHabit(occurrence.id) }) }
                     SecondaryAction(R.string.edit_action) { editedHabit = version; editor = "habit" }
+                    SecondaryAction(R.string.habit_note) { editor = "habitnote:${occurrence.id}" }
                     SecondaryAction(R.string.archive_habit, !state.busy) { model.action({ model.repository.archiveHabit(version.habitId, day) }) }
                 } }
                 lastHabitLog?.let { id -> SecondaryAction(R.string.undo_action, !state.busy) { model.action({ model.repository.undoHabit(id) }, after = { lastHabitLog = null }) } }
@@ -119,7 +133,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
             "FOOD" -> if (mode != "PAUSED" && period.profile.modules.contains("FOOD")) SectionCard(R.string.food_title) {
                 Text(stringResource(R.string.food_reference_description)); SecondaryAction(R.string.open_health, onClick = onHealth)
             }
-        } }
+        } } }
         SecondaryAction(R.string.shutdown_day, !state.busy) { model.action({ model.repository.setDay(day, shutdown = true) }) }
         daySettings?.shutdown?.let { Text(stringResource(R.string.shutdown_recorded)) }
     }
@@ -127,6 +141,14 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
         editor == "task" -> TaskEditor(model, state, editedTask, onSafety) { editor = null }
         editor == "habit" -> HabitEditor(model, state, editedHabit, onSafety) { editor = null }
         editor == "reset" -> PocketReset(model, onSafety) { editor = null }
+        editor?.startsWith("anchor:") == true -> RoutineAnchorEditor(model,state,editor!!,onSafety) { editor = null }
+        editor?.startsWith("habitnote:") == true -> {
+            val id = editor!!.substringAfter(':'); val key = editor!!
+            DraftEditor(model,state,key,R.string.habit_note,mapOf("text" to period.occurrences.firstOrNull { it.id == id }?.notes.orEmpty()),onSafety,{ editor = null }) { form,close ->
+                TextInput(form["text"].orEmpty(),R.string.habit_note,{ model.field(key,"text",it) },3)
+                PrimaryAction(R.string.save_action,!state.busy) { model.action({ model.repository.habitNote(id,form["text"].orEmpty()) },after = close) }
+            }
+        }
         editor == "next" || editor == "capture" || editor?.startsWith("quantity:") == true -> {
             val key = editor!!
             DraftEditor(model, state, key, if (key == "next") R.string.next_action_title else if (key == "capture") R.string.capture_title else R.string.log_habit,
@@ -166,10 +188,11 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
     val initial = mapOf("title" to original?.title.orEmpty(), "notes" to original?.notes.orEmpty(), "day" to (original?.day ?: period.end.toString()),
         "category" to (original?.category ?: "STUDY"), "minutes" to (original?.plannedSeconds?.div(60)?.toString() ?: ""),
         "time" to (original?.timeMinutes?.let { "%02d:%02d".format(java.util.Locale.ROOT, it/60, it%60) } ?: ""),
-        "priority" to (original?.priority?.toString() ?: "1"), "essential" to (original?.essential?.toString() ?: "false"), "subject" to original?.subjectId.orEmpty())
+        "priority" to (original?.priority?.toString() ?: "1"), "essential" to (original?.essential?.toString() ?: "false"), "subject" to original?.subjectId.orEmpty(),"project" to original?.projectId.orEmpty())
     DraftEditor(model, state, key, R.string.task_editor, initial, onSafety, onClose) { form, close ->
         TextInput(form["title"].orEmpty(), R.string.task_title, { model.field(key, "title", it) })
         TextInput(form["notes"].orEmpty(), R.string.note_text, { model.field(key, "notes", it) }, 3)
+        TextInput(form["project"].orEmpty(),R.string.project_tag,{ model.field(key,"project",it) })
         TextInput(form["day"].orEmpty(), R.string.logical_date, { model.field(key, "day", it) })
         ChoiceList(form["category"] ?: "STUDY", listOf("STUDY" to R.string.study_kind, "BUILD" to R.string.build_kind, "MOVEMENT" to R.string.movement_kind, "GENERAL" to R.string.general_kind)) { model.field(key, "category", it) }
         TextInput(form["minutes"].orEmpty(), R.string.duration_minutes_optional, { model.field(key, "minutes", it) })
@@ -187,7 +210,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
             val minutes = form["minutes"]?.takeIf { it.isNotBlank() }?.toLong()
             val time = form["time"]?.takeIf { it.isNotBlank() }?.let { LocalTime.parse(it) }?.let { it.hour * 60 + it.minute }
             model.repository.saveTask(PlanItem(original?.id ?: model.repository.newId(), date.toString(), form["title"].orEmpty(), form["notes"].orEmpty(),
-                form["category"] ?: "STUDY", form["subject"]?.takeIf { it.isNotBlank() }, original?.projectId, minutes?.times(60), time,
+                form["category"] ?: "STUDY", form["subject"]?.takeIf { it.isNotBlank() }, form["project"]?.takeIf(String::isNotBlank), minutes?.times(60), time,
                 form["priority"]!!.toInt(), original?.state ?: "PENDING", form["essential"] == "true", original?.position ?: period.tasks.size,
                 original?.created ?: model.repository.clock.millis(), model.repository.clock.millis(), original?.zone ?: period.preferences.zoneId,
                 original?.boundary ?: period.preferences.boundaryMinutes))
@@ -198,7 +221,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
 @Composable fun HabitEditor(model: ExpandedViewModel, state: ExpandedUiState, original: HabitVersion?, onSafety: () -> Unit, onClose: () -> Unit) {
     val period = state.period ?: return
     val key = "habit:${original?.habitId ?: "new"}"
-    val initial = mapOf("title" to original?.title.orEmpty(), "type" to (original?.type ?: "CHECKBOX"), "unit" to (original?.unit ?: "times"),
+    val initial = mapOf("title" to original?.title.orEmpty(), "type" to (original?.type ?: "CHECKBOX"), "unit" to (original?.unit ?: stringResource(R.string.times_unit)),
         "target" to (original?.target?.toString() ?: "1"), "weekdays" to (original?.weekdays?.toString() ?: "127"), "interval" to (original?.everyDays?.toString() ?: "1"),
         "essential" to (original?.essential?.toString() ?: "false"), "reminder" to (original?.reminderMinute?.let { "%02d:%02d".format(java.util.Locale.ROOT,it/60,it%60) } ?: ""))
     DraftEditor(model, state, key, R.string.habit_editor, initial, onSafety, onClose) { form, close ->
@@ -227,12 +250,21 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
 
 @Composable fun PocketReset(model: ExpandedViewModel, onSafety: () -> Unit, onClose: () -> Unit) {
     var step by remember { mutableStateOf(0) }
+    var next by remember { mutableStateOf("") }
+    val state by model.state.collectAsState()
     val labels = listOf(R.string.reset_pause, R.string.reset_breathe, R.string.reset_next)
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) { ExpandedPage {
             SecondaryAction(R.string.safety_action, onClick = onSafety)
             SectionCard(labels[step]) {
                 Text(stringResource(R.string.reset_optional))
+                if(step == 2) {
+                    TextInput(next,R.string.next_action_title,{ next = it },2)
+                    PrimaryAction(R.string.save_next_step,!state.busy && next.isNotBlank()) { model.action({
+                        model.repository.setDay(model.repository.logicalDay(),next = next)
+                    },after = onClose) }
+                    StateMessages(state)
+                }
                 PrimaryAction(if (step == 2) R.string.close_action else R.string.continue_action) { if (step == 2) onClose() else step++ }
                 SecondaryAction(R.string.skip_step) { if (step == 2) onClose() else step++ }
                 SecondaryAction(R.string.close_action, onClick = onClose)

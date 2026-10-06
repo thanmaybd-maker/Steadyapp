@@ -1,0 +1,50 @@
+import java.security.MessageDigest
+import javax.xml.parsers.DocumentBuilderFactory
+import java.util.zip.ZipFile
+
+gradle.projectsEvaluated {
+    def app = gradle.rootProject.findProject(':app')
+    app.tasks.register('writeRuntimeInventory') {
+        doLast {
+            def out = new File(app.buildDir,'reports/runtime-inventory.csv')
+            out.parentFile.mkdirs()
+            def notices = new File(app.buildDir,'reports/runtime-embedded-notices.txt')
+            notices.text = 'Embedded notices from resolved runtime artifacts.\n\n'
+            def rows = ['"coordinate","artifact_sha256","pom_sha256","licence_names","licence_urls"']
+            def quote = { value -> '"' + value.toString().replace('"','""') + '"' }
+            def sha = { file -> MessageDigest.getInstance('SHA-256').digest(file.bytes).encodeHex().toString() }
+            def factory = DocumentBuilderFactory.newInstance()
+            factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl',true)
+            factory.setFeature('http://xml.org/sax/features/external-general-entities',false)
+            factory.setFeature('http://xml.org/sax/features/external-parameter-entities',false)
+            app.configurations.debugRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.sort { it.moduleVersion.id.toString() }.each { artifact ->
+                def module = artifact.moduleVersion.id
+                def base = new File(gradle.gradleUserHomeDir,"caches/modules-2/files-2.1/${module.group}/${module.name}/${module.version}")
+                def poms = []; if(base.exists()) base.eachFileRecurse { if(it.name.endsWith('.pom')) poms.add(it) }
+                def names = []; def urls = []
+                if(poms) {
+                    def doc = factory.newDocumentBuilder().parse(poms[0])
+                    def licences = doc.getElementsByTagName('license')
+                    for(int index=0; index<licences.length; index++) {
+                        def licence = licences.item(index)
+                        def title = licence.getElementsByTagName('name'); def url = licence.getElementsByTagName('url')
+                        if(title.length) names.add(title.item(0).textContent.trim())
+                        if(url.length) urls.add(url.item(0).textContent.trim())
+                    }
+                }
+                rows.add([module.toString(),sha(artifact.file),poms ? sha(poms[0]) : 'MISSING',names.join('; '),urls.join('; ')].collect(quote).join(','))
+                if(artifact.file.name.endsWith('.jar') || artifact.file.name.endsWith('.aar')) {
+                    def zip = new ZipFile(artifact.file)
+                    try { zip.entries().each { entry ->
+                        if(!entry.directory && entry.size >= 0 && entry.size < 1024*1024 && entry.name.toUpperCase().matches('.*(LICENSE|NOTICE|COPYRIGHT).*')) {
+                            notices.append("=== ${module} / ${entry.name} ===\n")
+                            zip.getInputStream(entry).withCloseable { stream -> notices.append(stream.getText('UTF-8')+'\n\n') }
+                        }
+                    } } finally { zip.close() }
+                }
+            }
+            out.text = rows.join('\n')+'\n'
+            println("Runtime inventory: ${rows.size()-1} resolved artifacts; ${out.name}; ${notices.name}")
+        }
+    }
+}

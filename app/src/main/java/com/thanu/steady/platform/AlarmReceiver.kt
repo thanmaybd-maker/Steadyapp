@@ -41,8 +41,14 @@ class TimerReconcileReceiver : BroadcastReceiver() {
                 }
                 container.activityRepository.reconcile().forEach {
                     container.activityAlarms.cancel(it.id)
+                    container.activityAlarms.cancelRest(it.id)
                     if (it.state == "RUNNING") container.activityAlarms.schedule(it)
+                    val rest = container.activityRepository.rest(it.id)
+                    if(rest != null && !rest.complete && rest.boot == container.activityRepository.time().boot && it.state == "RUNNING")
+                        container.activityAlarms.scheduleRest(rest)
+                    else if(rest != null) container.activityRepository.cancelRest(it.id)
                 }
+                container.routineReminders.refresh()
             } catch (_: Exception) { /* Public help remains independent of this receiver. */ }
             finally { pending.finish() }
         }

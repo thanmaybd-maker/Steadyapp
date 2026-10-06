@@ -78,6 +78,7 @@ import java.util.Locale
                 Text(String.format(Locale.ROOT, "%02d:%02d", displayed / 60_000, displayed % 60_000 / 1000),
                     style = MaterialTheme.typography.headlineLarge)
                 Text(stringResource(R.string.actual_seconds, elapsed / 1000))
+                ActiveEffort(model,state,current)
                 PrimaryAction(if (current.state == "RUNNING") R.string.timer_pause else R.string.timer_resume, !state.busy) {
                     model.transition(if (current.state == "RUNNING") ActivityState.PAUSED else ActivityState.RUNNING)
                 }
@@ -103,6 +104,7 @@ import java.util.Locale
                     SecondaryAction(R.string.choose_task) { model.field(key, "task", task.id); model.field(key, "title", task.title); task.subjectId?.let { model.field(key, "subject", it) } }
                 }
             }
+            SubjectTopics(model,state,onSafety)
             SectionCard(R.string.break_tools) {
                 if (current == null) period.sessions.firstOrNull { it.type == "FOCUS" && it.state == "COMPLETED" && it.breakSeconds > 0 }?.let { previous ->
                     PrimaryAction(R.string.start_break, !state.busy) { model.start("BREAK", "REST", "", previous.breakSeconds, 0) }

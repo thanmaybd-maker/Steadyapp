@@ -108,7 +108,12 @@ object PortableCodec {
         ids(a.interruptions.map { it.id }); ids(a.observations.map { it.id }); ids(a.routes.map { it.id }); ids(a.estimates.map { it.id })
         require(a.days.map { it.day }.distinct().size == a.days.size)
         require(a.notes.map { it.id }.distinct().size == a.notes.size)
-        a.notes.forEach { require(!it.id.startsWith("draft:") && it.id.length <= 200); text(it.text); require(it.sessionId == null || it.sessionId in sessionIds) }
+        a.notes.forEach { require(!it.id.startsWith("draft:") && !it.id.startsWith("rest:") && !it.id.startsWith("delivery:") && it.id.length <= 200); text(it.text); require(it.sessionId == null || it.sessionId in sessionIds)
+            if(it.id.startsWith("program:")) {
+                require(it.sessionId != null && it.id == "program:${it.sessionId}" && sessionById[it.sessionId]?.kind == "INTERVALS")
+                Json.decodeFromString<com.thanu.steady.domain.IntervalProgram>(it.text).validate()
+            }
+        }
         a.tasks.forEach { day(it.day); policy(it.zone,it.boundary); text(it.title,500); require(it.title.isNotBlank()); text(it.notes)
             require(it.state in setOf("PENDING","COMPLETED","ARCHIVED") && it.priority in 0..2)
             require(it.category in setOf("GENERAL","STUDY","BUILD","MOVEMENT","CARE"))
@@ -150,7 +155,7 @@ object PortableCodec {
             require(it.load == null || it.load.isFinite() && it.load >= 0) }
         a.templates.forEach { text(it.title,500); text(it.exercises); require(it.title.isNotBlank())
             require(it.mode in setOf("WALKING","RUNNING","CYCLING","STRENGTH","INTERVALS","MOBILITY","CUSTOM"))
-            require(it.rounds in 1..100 && it.workSeconds in 1..86_400 && it.restSeconds in 0..86_400 && it.warmupSeconds in 0..86_400 && it.cooldownSeconds in 0..86_400) }
+            com.thanu.steady.domain.IntervalProgram(it.workSeconds,it.restSeconds,it.rounds,it.warmupSeconds,it.cooldownSeconds).validate() }
         a.water.forEach { day(it.day); policy(it.zone,it.boundary); require(it.millilitres > 0 && it.source == "USER") }
         a.sleep.forEach { day(it.day); policy(it.zone,it.boundary); text(it.notes)
             require(it.wake > it.bedtime && it.wake - it.bedtime <= 7 * 86_400_000L && (it.restedness == null || it.restedness in 1..5)) }
@@ -183,7 +188,7 @@ object PortableCodec {
             require(p.weightKg == null || p.weightKg.isFinite() && p.weightKg in 1.0..1000.0)
             fun csv(s: String, allowed: Set<String>) { val values = s.split(',').filter(String::isNotBlank); require(values.size == values.distinct().size && values.all { it in allowed }) }
             csv(p.modules,setOf("PLAN","HABITS","FOCUS","MOVEMENT","FOOD","WATER","SLEEP"))
-            val cards = setOf("NEXT","RINGS","TIMELINE","HABITS","CAPTURE","FOOD"); csv(p.dashboard,cards); csv(p.wideCards,cards)
+            val cards = setOf("NEXT","RINGS","TIMELINE","HABITS","CAPTURE","FOOD","ROUTINES"); csv(p.dashboard,cards); csv(p.wideCards,cards)
             require(p.zoneMode in setOf("FIXED","DEVICE") && p.dateStyle in setOf("LOCAL","ISO")) }
         a.preferences?.let { require(it.id == 1 && !it.appLock); policy(it.zoneId,it.boundaryMinutes); text(it.avoidFoods,2000); require(it.cueFlags in 0..7) }
     }

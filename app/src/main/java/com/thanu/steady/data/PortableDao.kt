@@ -32,7 +32,7 @@ interface PortableDao {
     @Query("SELECT * FROM activity_segment") suspend fun allSegments(): List<ActivitySegment>
     @Upsert suspend fun restoreSegments(values: List<ActivitySegment>)
     @Query("DELETE FROM activity_segment") suspend fun clearSegments()
-    @Query("SELECT * FROM session_note WHERE id NOT LIKE 'draft:%'") suspend fun allNotes(): List<SessionNote>
+    @Query("SELECT * FROM session_note WHERE id NOT LIKE 'draft:%' AND id NOT LIKE 'rest:%' AND id NOT LIKE 'delivery:%'") suspend fun allNotes(): List<SessionNote>
     @Upsert suspend fun restoreNotes(values: List<SessionNote>)
     @Query("DELETE FROM session_note") suspend fun clearNotes()
     @Query("SELECT * FROM exercise_set") suspend fun allSets(): List<ExerciseSet>

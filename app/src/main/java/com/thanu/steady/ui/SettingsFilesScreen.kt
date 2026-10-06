@@ -111,7 +111,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
     if (passwordMode != null) {
         val creating = passwordMode == "backup"
         AlertDialog(
-            onDismissRequest = { passwordMode = null; password = ""; confirmation = ""; restoreUri = null },
+            onDismissRequest = { if(creating) viewModel.cancelBackupScope(); passwordMode = null; password = ""; confirmation = ""; restoreUri = null },
             title = { Text(stringResource(if (creating) R.string.create_backup else R.string.restore_backup)) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -132,6 +132,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
                 })
             },
             dismissButton = { ActionButton(R.string.cancel, onClick = {
+                if(creating) viewModel.cancelBackupScope()
                 password = ""; confirmation = ""; passwordMode = null; restoreUri = null
             }) }
         )
@@ -143,7 +144,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
             text = { Column {
                 Text(stringResource(R.string.restore_scope_summary, counts[0], counts[1], counts[2]))
                 if (state.restoreRange.isNotBlank()) Text(state.restoreRange)
-                Text(stringResource(R.string.restore_replace_disclosure))
+                Text(stringResource(if(state.legacyRestore) R.string.legacy_restore_scope else R.string.restore_replace_disclosure))
             } },
             confirmButton = { ActionButton(R.string.replace_records, enabled = !state.isProcessing, onClick = viewModel::confirmRestore) },
             dismissButton = { ActionButton(R.string.cancel, enabled = !state.isProcessing, onClick = viewModel::cancelRestore) }

@@ -30,6 +30,7 @@
         
         <receiver android:name=".platform.AlarmReceiver" android:exported="false" />
         <receiver android:name=".platform.ActivityAlarmReceiver" android:exported="false" />
+        <receiver android:name=".platform.RoutineReminderReceiver" android:exported="false" />
         <receiver android:name=".platform.TimerReconcileReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

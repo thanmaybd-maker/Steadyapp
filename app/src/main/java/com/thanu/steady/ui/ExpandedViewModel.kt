@@ -16,12 +16,14 @@ import kotlinx.serialization.json.Json
 data class ExpandedUiState(val period: PeriodSnapshot? = null, val loading: Boolean = true,
     val busy: Boolean = false, val message: Int? = null, val error: Int? = null,
     val activeMillis: Long = 0, val scratchpad: String = "", val noteStatus: Int = R.string.saved,
-    val logicalToday: LocalDate? = null)
+    val logicalToday: LocalDate? = null, val interval: com.thanu.steady.domain.IntervalProgram? = null,
+    val rest: com.thanu.steady.domain.WorkoutRest? = null, val restRemaining: Long = 0)
 
 class ExpandedViewModel(val repository: ExpandedRepository, private val activity: ActivityRepository,
     private val preferences: PreferencesRepository, private val alarms: ActivityAlarmAdapter,
     private val notifications: NotificationAdapter, private val bootstrap: BootstrapStore,
-    private val isForeground: () -> Boolean) : ViewModel() {
+    private val isForeground: () -> Boolean, private val refreshReminders: suspend () -> Unit = {},
+    private val interruptLegacy: suspend () -> Unit = {}) : ViewModel() {
     private val _state = MutableStateFlow(ExpandedUiState())
     val state = _state.asStateFlow()
     private var watching: Job? = null
@@ -33,13 +35,15 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     private val _drafts = MutableStateFlow<Map<String, Map<String, String>>>(emptyMap())
     val drafts = _drafts.asStateFlow()
     private val draftJobs = mutableMapOf<String, Job>()
+    private val draftVersions = mutableMapOf<String, Int>()
     fun openDraft(key: String, initial: Map<String, String>) {
         if (_drafts.value.containsKey(key)) return
         _drafts.update { it + (key to initial) }
+        val version = draftVersions[key] ?: 0
         viewModelScope.launch {
             try {
                 val stored = withContext(Dispatchers.IO) { repository.note("draft:$key") }
-                if (stored != null && draftJobs[key]?.isActive != true) {
+                if (stored != null && (draftVersions[key] ?: 0) == version && _drafts.value.containsKey(key)) {
                     val values = Json.decodeFromString<Map<String, String>>(stored.text)
                     _drafts.update { it + (key to values) }
                 }
@@ -49,6 +53,7 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     }
     fun field(key: String, name: String, value: String) {
         if (value.length > 100_000) return
+        draftVersions[key] = (draftVersions[key] ?: 0) + 1
         val values = (_drafts.value[key] ?: emptyMap()) + (name to value)
         _drafts.update { it + (key to values) }
         draftJobs[key]?.cancel()
@@ -60,6 +65,7 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
         }
     }
     fun clearDraft(key: String) {
+        draftVersions[key] = (draftVersions[key] ?: 0) + 1
         draftJobs.remove(key)?.cancel()
         viewModelScope.launch {
             try { withContext(Dispatchers.IO) { repository.deleteNote("draft:$key") }; _drafts.update { it - key } }
@@ -75,6 +81,19 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
                 if (!isForeground()) continue
                 val session = _state.value.period?.active?.firstOrNull() ?: continue
                 _state.update { it.copy(activeMillis = activity.activeMillis(session)) }
+                _state.value.rest?.let { rest ->
+                    val now = activity.time()
+                    if(rest.boot != now.boot) {
+                        withContext(Dispatchers.IO) { activity.cancelRest(session.id) }; alarms.cancelRest(session.id)
+                        _state.update { it.copy(rest = null, restRemaining = 0) }
+                    } else {
+                        _state.update { it.copy(restRemaining = (rest.deadlineElapsed - now.elapsed).coerceAtLeast(0)) }
+                        if(!rest.complete && now.elapsed >= rest.deadlineElapsed) action({
+                            activity.completeRest(rest.id,rest.generation)?.let { notifications.showTimerCompleteNotification("rest:${it.id}",it.cueFlags) }
+                            alarms.cancelRest(session.id)
+                        }, success = R.string.rest_complete)
+                    }
+                }
                 if (session.state == "RUNNING" && session.deadlineElapsed != null && activity.time().elapsed >= session.deadlineElapsed)
                     complete(session)
                 if (++checkpointTick % 30 == 0 && session.state == "RUNNING") {
@@ -91,17 +110,26 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
         watching = viewModelScope.launch {
             try {
                 val range = withContext(Dispatchers.IO) {
+                    interruptLegacy()
                     activity.reconcile().forEach { if (it.state == "RUNNING") alarms.schedule(it) else alarms.cancel(it.id) }
                     val today = repository.logicalDay()
                     _state.update { it.copy(logicalToday = today) }
                     repository.prepareDay(today)
+                    try { refreshReminders() } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { _state.update { it.copy(error = R.string.reminder_schedule_failed) } }
                     (start ?: today) to (end ?: start ?: today)
                 }
                 repository.observe(range.first, range.second).collect { period ->
+                    val active = period.active.firstOrNull()
+                    val interval = active?.let { withContext(Dispatchers.IO) { activity.program(it.id) } }
+                    val rest = active?.let { withContext(Dispatchers.IO) { activity.rest(it.id) } }
                     _state.update { it.copy(period = period, loading = false,
-                        activeMillis = period.active.firstOrNull()?.let(activity::activeMillis) ?: 0) }
+                        activeMillis = active?.let(activity::activeMillis) ?: 0, interval = interval, rest = rest,
+                        restRemaining = rest?.let { (it.deadlineElapsed - activity.time().elapsed).coerceAtLeast(0) } ?: 0) }
                     val sessionId = period.active.firstOrNull()?.id
                     if (!noteLoaded || sessionId != noteSession) {
+                        noteSave?.join()
+                        if (_state.value.noteStatus == R.string.note_retry) return@collect
                         noteLoaded = true
                         noteSession = sessionId
                         val note = withContext(Dispatchers.IO) { repository.note("scratchpad:${sessionId ?: "general"}") }
@@ -117,7 +145,10 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
         if (_state.value.busy) return
         _state.update { it.copy(busy = true, error = null, message = null) }
         viewModelScope.launch {
-            try { withContext(Dispatchers.IO) { block() }; _state.update { it.copy(message = success) }; after() }
+            try { withContext(Dispatchers.IO) { block() }; _state.update { it.copy(message = success) }; after()
+                try { withContext(Dispatchers.IO) { refreshReminders() } } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { _state.update { it.copy(error = R.string.reminder_schedule_failed) } }
+            }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { _state.update { it.copy(error = R.string.action_failed) } }
             finally { _state.update { it.copy(busy = false) } }
@@ -146,21 +177,20 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
         startActivity(type, kind, title, seconds, breakSeconds, subjectId, taskId)
     }, after = after)
     suspend fun startActivity(type: String, kind: String, title: String, seconds: Long?, breakSeconds: Long,
-        subjectId: String? = null, taskId: String? = null) {
-        noteSave?.cancel()
-        if (_state.value.scratchpad.isNotEmpty()) repository.saveNote(SessionNote("scratchpad:${noteSession ?: "general"}",
-            noteSession, _state.value.scratchpad, repository.clock.millis()))
-        val started = activity.create(type, kind, title, seconds, breakSeconds, subjectId, taskId)
+        subjectId: String? = null, taskId: String? = null, notes: String = "", program: com.thanu.steady.domain.IntervalProgram? = null) {
+        flushNote()
+        val started = activity.create(type, kind, title, seconds, breakSeconds, subjectId, taskId, notes, program)
         alarms.schedule(started)
     }
     fun transition(next: ActivityState) {
         val current = _state.value.period?.active?.firstOrNull() ?: return
-        action({ val fresh = activity.transition(current.id, current.generation, next)
-            alarms.cancel(current.id); if (fresh.state == "RUNNING") alarms.schedule(fresh) })
+        action({ flushNote(); val fresh = activity.transition(current.id, current.generation, next)
+            alarms.cancel(current.id); alarms.cancelRest(current.id); if (fresh.state == "RUNNING") alarms.schedule(fresh) })
     }
     private fun complete(session: ActivitySession) = action({
         activity.complete(session.id, session.generation)?.let {
             alarms.cancel(it.id); notifications.showTimerCompleteNotification(it.id, it.cueFlags)
+            alarms.cancelRest(it.id)
         }
     }, success = R.string.timer_complete)
     fun scratchpad(value: String) {
@@ -179,12 +209,27 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
         }
     }
     fun retryNote() = scratchpad(_state.value.scratchpad)
+    private suspend fun flushNote() {
+        noteSave?.cancelAndJoin()
+        if (noteLoaded) repository.saveNote(SessionNote("scratchpad:${noteSession ?: "general"}", noteSession,
+            _state.value.scratchpad, repository.clock.millis()))
+        _state.update { it.copy(noteStatus = R.string.saved) }
+    }
     fun subject(value: Subject, after: () -> Unit) = action({ repository.saveSubject(value) }, after = after)
     fun water(value: WaterLog, after: () -> Unit) = action({ repository.saveWater(value) }, after = after)
     fun sleep(value: SleepLog, after: () -> Unit) = action({ repository.saveSleep(value) }, after = after)
     fun food(value: FoodIdeaRecord, after: () -> Unit) = action({ repository.saveFood(value) }, after = after)
     fun set(value: ExerciseSet, after: () -> Unit) = action({ activity.saveSet(value) }, after = after)
+    suspend fun saveSet(value: ExerciseSet) = activity.saveSet(value)
+    suspend fun saveTemplate(value: WorkoutTemplate) = activity.saveTemplate(value)
     suspend fun sets(id: String) = withContext(Dispatchers.IO) { activity.sets(id) }
+    suspend fun templates() = withContext(Dispatchers.IO) { activity.templates() }
+    fun template(value: WorkoutTemplate, after: () -> Unit) = action({ activity.saveTemplate(value) }, after = after)
+    fun deleteTemplate(id: String) = action({ activity.deleteTemplate(id) })
+    fun effort(id: String, value: Int?) = action({ activity.effort(id,value) })
+    fun rest(sessionId: String, seconds: Int) = action({ val value = activity.startRest(sessionId,seconds); alarms.scheduleRest(value) })
+    suspend fun beginRest(sessionId: String, seconds: Int) { val value = activity.startRest(sessionId,seconds); alarms.scheduleRest(value) }
+    fun cancelRest(sessionId: String) = action({ activity.cancelRest(sessionId); alarms.cancelRest(sessionId) })
     fun deleteSet(id: String) = action({ activity.deleteSet(id) })
     suspend fun manualWorkout(kind: String, title: String, actualMinutes: Double, notes: String) = activity.manualWorkout(kind, title, actualMinutes, notes)
     suspend fun correctHistory(id: String, millis: Long, notes: String, effort: Int?) = activity.editHistory(id, millis, notes, effort)
@@ -195,4 +240,10 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     suspend fun setFoodPreferences(vegetarian: Boolean, avoid: String) = preferences.update { it.copy(vegetarian = vegetarian, avoidFoods = avoid) }
     fun editHistory(id: String, millis: Long, note: String, effort: Int?, after: () -> Unit) = action({ activity.editHistory(id, millis, note, effort) }, after = after)
     fun deleteHistory(id: String) = action({ activity.deleteHistory(id) })
+    fun afterRecovery() {
+        noteSave?.cancel(); draftJobs.values.forEach { it.cancel() }; draftJobs.clear()
+        _drafts.value = emptyMap(); noteLoaded = false; noteSession = null
+        _state.update { it.copy(scratchpad = "",noteStatus = R.string.saved) }
+        reload()
+    }
 }

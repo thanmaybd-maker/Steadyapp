@@ -27,7 +27,8 @@ import com.thanu.steady.di.AppContainer
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
             return ExpandedViewModel(container.expandedRepository, container.activityRepository, container.preferencesRepository,
-                container.activityAlarms, container.notificationAdapter, container.bootstrap, { container.isForeground }) as T
+                container.activityAlarms, container.notificationAdapter, container.bootstrap, { container.isForeground },
+                { container.routineReminders.refresh() }, { container.timerRepository.reconcile(true).forEach { container.alarmAdapter.cancelAlarm(it.id) } }) as T
         }
     })
     val state by model.state.collectAsState()
@@ -115,7 +116,8 @@ import com.thanu.steady.di.AppContainer
 
 @Composable fun ExpandedOnboarding(model: ExpandedViewModel, state: ExpandedUiState, onSafety: () -> Unit) {
     val key = "onboarding"
-    LaunchedEffect(Unit) { model.openDraft(key, mapOf("name" to "", "country" to "IN", "zone" to "Asia/Kolkata", "boundary" to "04:00", "palette" to "KINETIC")) }
+    LaunchedEffect(Unit) { model.openDraft(key, mapOf("name" to "", "country" to "IN", "zone" to "Asia/Kolkata", "boundary" to "04:00", "palette" to "KINETIC",
+        "modules" to "PLAN,HABITS,FOCUS,MOVEMENT,FOOD,WATER,SLEEP","contrast" to "false","motion" to "false","large" to "false")) }
     val drafts by model.drafts.collectAsState()
     val form = drafts[key] ?: emptyMap()
     ExpandedPage {
@@ -127,13 +129,22 @@ import com.thanu.steady.di.AppContainer
             ChoiceList(form["palette"] ?: "KINETIC", listOf("KINETIC" to R.string.kinetic_palette, "DAYBOOK" to R.string.daybook_palette)) { model.field(key, "palette", it) }
             TextInput(form["zone"] ?: "", R.string.timezone, { model.field(key, "zone", it) })
             TextInput(form["boundary"] ?: "", R.string.day_boundary, { model.field(key, "boundary", it) })
+            ToggleRow(R.string.high_contrast,form["contrast"] == "true") { model.field(key,"contrast",it.toString()) }
+            ToggleRow(R.string.reduced_motion,form["motion"] == "true") { model.field(key,"motion",it.toString()) }
+            ToggleRow(R.string.larger_text,form["large"] == "true") { model.field(key,"large",it.toString()) }
+            val modules = form["modules"]?.split(',')?.filter(String::isNotBlank)?.toSet() ?: state.period!!.profile.modules.split(',').toSet()
+            listOf("PLAN" to R.string.plan_module,"HABITS" to R.string.habits_title,"FOCUS" to R.string.focus_tab,
+                "MOVEMENT" to R.string.movement_title,"FOOD" to R.string.food_title,"WATER" to R.string.water_title,"SLEEP" to R.string.sleep_title).forEach { (id,label) ->
+                ToggleRow(label,id in modules) { checked -> model.field(key,"modules",(if(checked) modules+id else modules-id).joinToString(",")) }
+            }
             StateMessages(state)
             PrimaryAction(R.string.finish_setup, !state.busy) {
                 model.action({
                     val boundary = java.time.LocalTime.parse(form["boundary"] ?: "04:00").let { it.hour * 60 + it.minute }
                     // Use the same persistence action as Settings; no selected defaults become activity logs.
                     val p = state.period!!.profile.copy(displayName = form["name"] ?: "", country = form["country"] ?: "IN",
-                        palette = form["palette"] ?: "KINETIC", onboarded = true)
+                        palette = form["palette"] ?: "KINETIC", onboarded = true,modules = modules.joinToString(","),
+                        highContrast = form["contrast"] == "true",reducedMotion = form["motion"] == "true",textScale = if(form["large"] == "true") 1.25f else 1f)
                     model.completeOnboarding(p, form["zone"] ?: "Asia/Kolkata", boundary)
                 }, after = { model.clearDraft(key); model.reload() })
             }

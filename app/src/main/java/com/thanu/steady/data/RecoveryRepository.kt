@@ -41,7 +41,7 @@ class RecoveryRepository(private val databaseProvider: () -> SteadyDatabase) {
     }
     suspend fun markdown(start: LocalDate,end: LocalDate,categories: Set<String>,notes: Boolean,clock: java.time.Clock): String {
         val db = databaseProvider()
-        return ExpandedMarkdown.generate(ExpandedRepository({ db },clock,PreferencesRepository { db }).snapshot(start,end),categories,notes)
+        return ExpandedMarkdown.generate(ExpandedRepository({ db },clock,PreferencesRepository { db }).snapshot(start,end, forExport = true),categories,notes)
     }
     suspend fun snapshot(includeRoutes: Boolean = false): RecoverySnapshot {
         val db = databaseProvider()
@@ -98,6 +98,16 @@ class RecoveryRepository(private val databaseProvider: () -> SteadyDatabase) {
                     state = TimerState.CANCELLED, targetWallTime = null, targetElapsedTime = null,
                     remainingMs = it.durationMs, generation = it.generation + 1
                 ))
+            }
+            if(snapshot.expanded == null) {
+                val dao = db.expandedDao()
+                dao.activeSessions().forEach { s ->
+                    dao.save(s.copy(state = "INTERRUPTED",wallAnchor = null,elapsedAnchor = null,deadlineElapsed = null,boot = 0,generation = s.generation+1))
+                    dao.segments(s.id).filter { it.endWall == null }.forEach { span ->
+                        dao.save(span.copy(endWall = span.startWall+span.activeMillis,elapsedEnd = span.elapsedStart+span.activeMillis))
+                    }
+                    dao.deleteNote("rest:${s.id}")
+                }
             }
             snapshot.expanded?.let { a ->
                 val dao = db.portableDao()

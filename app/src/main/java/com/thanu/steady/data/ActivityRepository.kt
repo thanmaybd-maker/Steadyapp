@@ -4,21 +4,26 @@ import androidx.room.withTransaction
 import com.thanu.steady.domain.*
 import java.time.ZoneId
 import java.util.UUID
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 class ActivityRepository(private val provider: () -> SteadyDatabase, val time: () -> ActivityClock,
     private val preferences: PreferencesRepository) {
     private val engine = ActivityEngine()
     suspend fun active(): ActivitySession? = provider().expandedDao().activeSessions().firstOrNull()
     suspend fun create(type: String, kind: String, title: String, targetSeconds: Long?, breakSeconds: Long = 0,
-        subjectId: String? = null, taskId: String? = null): ActivitySession {
+        subjectId: String? = null, taskId: String? = null, notes: String = "", program: IntervalProgram? = null): ActivitySession {
         require(type in setOf("FOCUS", "WORKOUT", "BREAK", "REST", "INTERVAL"))
         require(targetSeconds == null || targetSeconds in 1..86_400)
         require(breakSeconds in 0..86_400 && title.length <= 500)
+        require(notes.length <= 100_000)
+        program?.let { it.validate(); require(type == "WORKOUT" && kind == "INTERVALS" && targetSeconds == it.totalSeconds) }
         val p = preferences.get()
         val now = time()
         val session = ActivitySession(UUID.randomUUID().toString(), type, kind, title, subjectId, taskId,
             plannedSeconds = targetSeconds, breakSeconds = breakSeconds, zone = p.zoneId, boundary = p.boundaryMinutes,
-            cueFlags = p.cueFlags, updated = now.wall)
+            cueFlags = p.cueFlags, notes = notes, updated = now.wall)
         val db = provider()
         return db.withTransaction {
             // Paused work remains explicit: the caller must resume, save or discard it before another session.
@@ -28,6 +33,7 @@ class ActivityRepository(private val provider: () -> SteadyDatabase, val time: (
             val started = session.applyTiming(engine.resume(session.timing(), now)).copy(started = now.wall)
             db.expandedDao().save(started)
             db.expandedDao().save(segment(started, now))
+            program?.let { db.expandedDao().save(SessionNote("program:${started.id}", started.id, Json.encodeToString(it), now.wall)) }
             started
         }
     }
@@ -45,6 +51,7 @@ class ActivityRepository(private val provider: () -> SteadyDatabase, val time: (
                 ended = if (next in setOf(ActivityState.COMPLETED, ActivityState.STOPPED, ActivityState.DISCARDED)) now.wall else null)
             closeSegment(dao, old, fresh.activeMillis, now)
             dao.save(fresh)
+            if (next != ActivityState.RUNNING) dao.deleteNote("rest:$id")
             if (next == ActivityState.RUNNING) dao.save(segment(fresh, now))
             fresh
         }
@@ -61,6 +68,7 @@ class ActivityRepository(private val provider: () -> SteadyDatabase, val time: (
             val fresh = current.applyTiming(timing).copy(ended = now.wall, updated = now.wall)
             closeSegment(dao, current, fresh.activeMillis, now)
             dao.save(fresh)
+            dao.deleteNote("rest:$id")
             fresh
         }
     }
@@ -129,7 +137,7 @@ class ActivityRepository(private val provider: () -> SteadyDatabase, val time: (
         }
     }
     suspend fun saveSet(value: ExerciseSet) {
-        require(value.exercise.isNotBlank() && value.reps in 0..10_000 && (value.load == null || value.load.isFinite() && value.load >= 0))
+        require(value.exercise.isNotBlank() && value.exercise.length <= 500 && value.reps in 0..10_000 && (value.load == null || value.load.isFinite() && value.load in 0.0..100_000.0))
         require(value.unit in setOf("kg", "lb") && value.notes.length <= 10_000)
         val db = provider()
         db.withTransaction { require(db.expandedDao().session(value.sessionId)?.type == "WORKOUT"); db.expandedDao().save(value) }
@@ -152,11 +160,45 @@ class ActivityRepository(private val provider: () -> SteadyDatabase, val time: (
     }
     suspend fun deleteSet(id: String) = provider().expandedDao().deleteSet(id)
     suspend fun saveTemplate(value: WorkoutTemplate) {
-        require(value.title.isNotBlank() && value.rounds in 1..100 && value.workSeconds in 1..86_400 && value.restSeconds in 0..86_400)
-        require(value.warmupSeconds in 0..86_400 && value.cooldownSeconds in 0..86_400)
+        require(value.title.isNotBlank() && value.title.length <= 500 && value.exercises.length <= 100_000)
+        require(value.mode in setOf("STRENGTH", "INTERVALS"))
+        IntervalProgram(value.workSeconds,value.restSeconds,value.rounds,value.warmupSeconds,value.cooldownSeconds).validate()
         provider().expandedDao().save(value)
     }
     suspend fun templates() = provider().expandedDao().templates()
+    suspend fun deleteTemplate(id: String) = provider().expandedDao().deleteTemplate(id)
+    suspend fun program(id: String): IntervalProgram? = provider().expandedDao().note("program:$id")?.let {
+        Json.decodeFromString<IntervalProgram>(it.text).also(IntervalProgram::validate)
+    }
+    suspend fun effort(id: String, value: Int?) {
+        require(value == null || value in 1..10)
+        val db = provider()
+        db.withTransaction { val session = requireNotNull(db.expandedDao().session(id)); db.expandedDao().save(session.copy(effort = value, updated = time().wall)) }
+    }
+    suspend fun rest(id: String): WorkoutRest? = provider().expandedDao().note("rest:$id")?.let { Json.decodeFromString<WorkoutRest>(it.text) }
+    suspend fun startRest(sessionId: String, seconds: Int): WorkoutRest {
+        require(seconds in 1..3600)
+        val db = provider()
+        return db.withTransaction {
+            val session = requireNotNull(db.expandedDao().session(sessionId))
+            require(session.type == "WORKOUT" && session.kind == "STRENGTH" && session.state == "RUNNING")
+            val now = time()
+            val old = rest(sessionId)
+            WorkoutRest(sessionId, sessionId, now.elapsed + seconds * 1000L, now.boot, (old?.generation ?: 0) + 1,
+                session.cueFlags).also { db.expandedDao().save(SessionNote("rest:$sessionId", sessionId, Json.encodeToString(it), now.wall)) }
+        }
+    }
+    suspend fun completeRest(id: String, generation: Int): WorkoutRest? {
+        val db = provider()
+        return db.withTransaction {
+            val value = rest(id) ?: return@withTransaction null
+            val now = time()
+            if (value.complete || value.generation != generation || value.boot != now.boot || now.elapsed < value.deadlineElapsed ||
+                db.expandedDao().session(value.sessionId)?.state != "RUNNING") return@withTransaction null
+            value.copy(complete = true).also { db.expandedDao().save(SessionNote("rest:$id", id, Json.encodeToString(it), now.wall)) }
+        }
+    }
+    suspend fun cancelRest(id: String) = provider().expandedDao().deleteNote("rest:$id")
 }
 
 private fun ActivitySession.timing() = ActivityTiming(ActivityState.valueOf(state), plannedSeconds?.times(1000),

@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import com.thanu.steady.R
 import com.thanu.steady.data.*
 import com.thanu.steady.domain.ActivityState
+import com.thanu.steady.domain.IntervalProgram
 import java.time.*
 
 val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.string.running_mode,
@@ -21,19 +22,49 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
     var food by remember { mutableStateOf<FoodIdeaRecord?>(null) }
     var water by remember { mutableStateOf<WaterLog?>(null) }
     var sleep by remember { mutableStateOf<SleepLog?>(null) }
+    var care by remember { mutableStateOf<CareReminder?>(null) }
     var sets by remember { mutableStateOf<List<ExerciseSet>>(emptyList()) }
+    var templates by remember { mutableStateOf<List<WorkoutTemplate>>(emptyList()) }
+    var selectedTemplate by remember { mutableStateOf<WorkoutTemplate?>(null) }
+    var selectedSet by remember { mutableStateOf<ExerciseSet?>(null) }
+    var restSeconds by remember { mutableStateOf("60") }
     var undoneWater by remember { mutableStateOf<WaterLog?>(null) }
     val active = period.active.firstOrNull()
-    LaunchedEffect(active?.id, state.busy) { if (active?.type == "WORKOUT") sets = model.sets(active.id) }
+    LaunchedEffect(active?.id, state.busy) {
+        try { if (active?.type == "WORKOUT") sets = model.sets(active.id); templates = model.templates() }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { model.action({ error("Storage unavailable") }) }
+    }
     ExpandedPage {
         StateMessages(state)
         if (period.profile.modules.contains("MOVEMENT")) SectionCard(R.string.movement_title) {
             Text(stringResource(R.string.manual_workout_description))
             PrimaryAction(R.string.start_workout) { editor = "workout" }
             SecondaryAction(R.string.log_manual_workout) { editor = "manual_workout" }
+            SecondaryAction(R.string.add_workout_template) { selectedTemplate = null; editor = "template" }
+            templates.forEach { template ->
+                Text(template.title, style = MaterialTheme.typography.titleMedium)
+                if(template.exercises.isNotBlank()) Text(template.exercises)
+                PrimaryAction(R.string.start_template, !state.busy && active == null) { model.action({
+                    val program = if(template.mode == "INTERVALS") IntervalProgram(template.workSeconds,template.restSeconds,template.rounds,
+                        template.warmupSeconds,template.cooldownSeconds) else null
+                    model.startActivity("WORKOUT",template.mode,template.title,program?.totalSeconds,0,
+                        notes = template.exercises, program = program)
+                }) }
+                SecondaryAction(R.string.edit_action) { selectedTemplate = template; editor = "template" }
+                SecondaryAction(R.string.delete_action, !state.busy) { model.deleteTemplate(template.id) }
+            }
             if (active?.type == "WORKOUT") {
                 Text(active.title)
                 Text(stringResource(R.string.actual_seconds, state.activeMillis / 1000))
+                state.interval?.let { program ->
+                    val phase = program.phase(state.activeMillis)
+                    Text(stringResource(R.string.interval_phase, stringResource(when(phase.kind) {
+                        "WARMUP" -> R.string.warmup_phase; "WORK" -> R.string.work_phase; "REST" -> R.string.rest_phase
+                        "COOLDOWN" -> R.string.cooldown_phase; else -> R.string.completed
+                    }),phase.round,program.rounds,phase.remainingSeconds))
+                }
+                ActiveEffort(model,state,active)
                 PrimaryAction(if (active.state == "RUNNING") R.string.timer_pause else R.string.timer_resume, !state.busy) {
                     model.transition(if (active.state == "RUNNING") ActivityState.PAUSED else ActivityState.RUNNING)
                 }
@@ -41,10 +72,20 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
                 SecondaryAction(R.string.discard_session, !state.busy) { model.transition(ActivityState.DISCARDED) }
                 SecondaryAction(R.string.safety_action, onClick = onSafety)
                 if (active.kind == "STRENGTH") {
-                    PrimaryAction(R.string.add_set) { editor = "set" }
+                    PrimaryAction(R.string.add_set) { selectedSet = null; editor = "set" }
                     sets.forEach { set ->
                         Text(stringResource(R.string.exercise_set_summary, set.exercise, set.reps, set.load?.toString() ?: stringResource(R.string.bodyweight), set.unit))
+                        SecondaryAction(R.string.edit_action) { selectedSet = set; editor = "set" }
                         SecondaryAction(R.string.delete_action, !state.busy) { model.deleteSet(set.id) }
+                    }
+                    TextInput(restSeconds,R.string.rest_seconds,{ restSeconds = it })
+                    PrimaryAction(R.string.start_rest,!state.busy && active.state == "RUNNING") { model.action({
+                        val seconds = restSeconds.toInt(); require(seconds in 1..3600)
+                        model.beginRest(active.id,seconds)
+                    }) }
+                    state.rest?.let { rest ->
+                        Text(stringResource(if(rest.complete) R.string.rest_complete else R.string.rest_remaining, state.restRemaining / 1000))
+                        SecondaryAction(R.string.cancel, !state.busy) { model.cancelRest(active.id) }
                     }
                 }
             } else if (active != null) {
@@ -104,13 +145,15 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
             }
             period.meals.forEach { meal -> Text(meal.title); SecondaryAction(R.string.delete_meal, !state.busy) { model.action({ model.repository.deleteMeal(meal.id) }) } }
         }
+        if("FOOD" in period.profile.modules.split(',')) FoodReferenceCard(model,state)
         SectionCard(R.string.care_title) {
             Text(stringResource(R.string.care_disclosure))
-            PrimaryAction(R.string.add_care) { editor = "care" }
+            PrimaryAction(R.string.add_care) { care = null; editor = "care" }
             period.care.forEach { reminder ->
                 Text(reminder.instruction)
                 Text("%02d:%02d".format(java.util.Locale.ROOT, reminder.minute / 60, reminder.minute % 60))
                 ToggleRow(R.string.reminder_enabled, reminder.enabled) { enabled -> model.action({ model.repository.saveCare(reminder.copy(enabled = enabled)) }) }
+                SecondaryAction(R.string.edit_action) { care = reminder; editor = "care" }
                 val logged = period.careLogs.any { it.reminderId == reminder.id }
                 PrimaryAction(if (logged) R.string.completed else R.string.mark_care_done, !state.busy && !logged) { model.action({
                     model.repository.saveCareLog(CareLog(java.util.UUID.nameUUIDFromBytes("care|${reminder.id}|${period.end}".toByteArray()).toString(), reminder.id,
@@ -124,16 +167,10 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
         editor == "sleep" -> SleepEditor(model, state, sleep, onSafety) { editor = null }
         editor == "food" -> FoodEditor(model, state, food, onSafety) { editor = null }
         editor == "workout" || editor == "manual_workout" -> WorkoutEditor(model, state, editor == "manual_workout", onSafety) { editor = null }
-        editor == "set" && active != null -> SetEditor(model, state, active.id, onSafety) { editor = null }
+        editor == "set" && active != null -> SetEditor(model, state, active.id, onSafety, selectedSet, sets.size) { editor = null }
+        editor == "template" -> TemplateEditor(model,state,selectedTemplate,onSafety) { editor = null }
         editor?.startsWith("history:") == true -> period.sessions.firstOrNull { it.id == editor!!.substringAfter(':') }?.let { HistoryEditor(model, state, it, onSafety) { editor = null } }
-        editor == "care" -> DraftEditor(model, state, "care:new", R.string.add_care, mapOf("instruction" to "", "time" to "09:00"), onSafety, { editor = null }) { values, close ->
-            TextInput(values["instruction"].orEmpty(), R.string.care_instruction, { model.field("care:new", "instruction", it) }, 3)
-            TextInput(values["time"].orEmpty(), R.string.reminder_time, { model.field("care:new", "time", it) })
-            PrimaryAction(R.string.save_action, !state.busy) { model.action({
-                val time = LocalTime.parse(values["time"]!!)
-                model.repository.saveCare(CareReminder(model.repository.newId(), values["instruction"].orEmpty(), minute = time.hour * 60 + time.minute, updated = model.repository.clock.millis()))
-            }, after = close) }
-        }
+        editor == "care" -> CareEditor(model,state,care,onSafety) { editor = null }
     }
 }
 
@@ -198,30 +235,42 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
     val period = state.period ?: return
     val key = if (manual) "manual_workout:new" else "workout:new"
     DraftEditor(model, state, key, if (manual) R.string.log_manual_workout else R.string.start_workout,
-        mapOf("kind" to "WALKING", "title" to "", "minutes" to "", "notes" to ""), onSafety, onClose) { values, close ->
+        mapOf("kind" to "WALKING", "title" to "", "minutes" to "", "notes" to "", "work" to "30", "rest" to "30",
+            "rounds" to "4", "warmup" to "0", "cooldown" to "0"), onSafety, onClose) { values, close ->
         ChoiceList(values["kind"] ?: "WALKING", workoutModes) { model.field(key, "kind", it) }
         TextInput(values["title"].orEmpty(), R.string.workout_name, { model.field(key, "title", it) })
         TextInput(values["minutes"].orEmpty(), if (manual) R.string.actual_minutes else R.string.duration_minutes_optional, { model.field(key, "minutes", it) })
         TextInput(values["notes"].orEmpty(), R.string.note_text, { model.field(key, "notes", it) }, 2)
+        if(!manual && values["kind"] == "INTERVALS") IntervalFields(model,key,values)
         Text(stringResource(R.string.user_entered_source))
         if (period.active.isNotEmpty()) Text(stringResource(R.string.focus_workout_conflict))
         PrimaryAction(if (manual) R.string.save_action else R.string.timer_start, !state.busy && period.active.isEmpty()) { model.action({
             if (manual) model.manualWorkout(values["kind"] ?: "WALKING", values["title"].orEmpty(), values["minutes"]!!.toDouble(), values["notes"].orEmpty())
-            else model.startActivity("WORKOUT", values["kind"] ?: "WALKING", values["title"].orEmpty(),
-                values["minutes"]?.takeIf(String::isNotBlank)?.toLong()?.times(60), 0)
+            else {
+                val program = if(values["kind"] == "INTERVALS") intervalFrom(values) else null
+                model.startActivity("WORKOUT", values["kind"] ?: "WALKING", values["title"].orEmpty(),
+                    program?.totalSeconds ?: values["minutes"]?.takeIf(String::isNotBlank)?.toLong()?.times(60), 0,
+                    notes = values["notes"].orEmpty(), program = program)
+            }
         }, after = close) }
     }
 }
 
-@Composable fun SetEditor(model: ExpandedViewModel, state: ExpandedUiState, sessionId: String, onSafety: () -> Unit, onClose: () -> Unit) {
-    val key = "set:$sessionId"
-    DraftEditor(model, state, key, R.string.add_set, mapOf("exercise" to "", "reps" to "", "load" to "", "unit" to "kg"), onSafety, onClose) { values, close ->
+@Composable fun SetEditor(model: ExpandedViewModel, state: ExpandedUiState, sessionId: String, onSafety: () -> Unit,
+    original: ExerciseSet? = null, position: Int = 0, onClose: () -> Unit) {
+    val key = "set:$sessionId:${original?.id ?: "new"}"
+    DraftEditor(model, state, key, R.string.add_set, mapOf("exercise" to original?.exercise.orEmpty(), "reps" to (original?.reps?.toString() ?: ""),
+        "load" to (original?.load?.toString() ?: ""), "unit" to (original?.unit ?: "kg"), "notes" to original?.notes.orEmpty()), onSafety, onClose) { values, close ->
         TextInput(values["exercise"].orEmpty(), R.string.exercise_name, { model.field(key, "exercise", it) })
         TextInput(values["reps"].orEmpty(), R.string.repetitions, { model.field(key, "reps", it) })
         TextInput(values["load"].orEmpty(), R.string.load_optional, { model.field(key, "load", it) })
         ChoiceList(values["unit"] ?: "kg", listOf("kg" to R.string.kilograms, "lb" to R.string.pounds)) { model.field(key, "unit", it) }
-        PrimaryAction(R.string.save_action, !state.busy) { model.set(ExerciseSet(model.repository.newId(), sessionId, values["exercise"].orEmpty(),
-            values["reps"]!!.toInt(), values["load"]?.takeIf(String::isNotBlank)?.toDouble(), values["unit"] ?: "kg", model.repository.clock.millis()), close) }
+        TextInput(values["notes"].orEmpty(),R.string.note_text,{ model.field(key,"notes",it) },2)
+        PrimaryAction(R.string.save_action, !state.busy) { model.action({
+            model.saveSet(ExerciseSet(original?.id ?: model.repository.newId(), sessionId, values["exercise"].orEmpty(),
+                values["reps"]!!.toInt(), values["load"]?.takeIf(String::isNotBlank)?.toDouble(), values["unit"] ?: "kg",
+                original?.doneAt ?: model.repository.clock.millis(),values["notes"].orEmpty(),original?.position ?: position))
+        }, after = close) }
     }
 }
 

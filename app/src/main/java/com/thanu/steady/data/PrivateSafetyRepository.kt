@@ -3,6 +3,13 @@ package com.thanu.steady.data
 import androidx.room.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import com.thanu.steady.domain.SafetyPlan
+import com.thanu.steady.domain.SupportContact
+import java.time.Instant
 
 @Entity(tableName = "safety_migration")
 data class SafetyMigration(@PrimaryKey val id: Int = 1, val complete: Boolean)
@@ -10,12 +17,34 @@ data class SafetyMigration(@PrimaryKey val id: Int = 1, val complete: Boolean)
     @Query("SELECT * FROM safety_migration WHERE id = 1") suspend fun get(): SafetyMigration?
     @Upsert suspend fun save(value: SafetyMigration)
 }
-@Database(entities = [SafetyPlanEntity::class, SupportContactEntity::class, SafetyMigration::class], version = 1, exportSchema = true)
+@Entity(tableName = "safety_draft")
+data class SafetyDraftEntity(@PrimaryKey val id: Int = 1, val content: String)
+@Dao interface SafetyDraftDao {
+    @Query("SELECT * FROM safety_draft WHERE id = 1") suspend fun get(): SafetyDraftEntity?
+    @Upsert suspend fun save(value: SafetyDraftEntity)
+    @Query("DELETE FROM safety_draft") suspend fun clear()
+}
+val SAFETY_MIGRATION_1_2 = object : androidx.room.migration.Migration(1,2) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `safety_draft` (`id` INTEGER NOT NULL, `content` TEXT NOT NULL, PRIMARY KEY(`id`))")
+    }
+}
+@Database(entities = [SafetyPlanEntity::class, SupportContactEntity::class, SafetyMigration::class, SafetyDraftEntity::class], version = 2, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class PrivateSafetyDatabase : RoomDatabase() {
     abstract fun safetyDao(): SafetyDao
     abstract fun migrationDao(): SafetyMigrationDao
+    abstract fun draftDao(): SafetyDraftDao
 }
+
+@Serializable private data class PrivateDraft(val fields: Map<String,String?>,val contacts: List<SupportContact>)
+private fun SafetyPlan.draft() = PrivateDraft(mapOf("warning" to warningSigns,"coping" to copingSteps,"places" to safePeoplePlaces,
+    "environment" to environmentSteps,"clinic" to clinicName,"phone" to clinicPhone,"followUp" to followUpAt,
+    "reviewed" to reviewedByUserAt?.toString(),"status" to clinicianReviewStatus,"updated" to updatedAt.toString()),contacts)
+private fun PrivateDraft.plan() = SafetyPlan(warningSigns = fields["warning"].orEmpty(),copingSteps = fields["coping"].orEmpty(),
+    safePeoplePlaces = fields["places"].orEmpty(),environmentSteps = fields["environment"].orEmpty(),clinicName = fields["clinic"].orEmpty(),
+    clinicPhone = fields["phone"].orEmpty(),followUpAt = fields["followUp"],reviewedByUserAt = fields["reviewed"]?.let(Instant::parse),
+    clinicianReviewStatus = fields["status"].orEmpty(),updatedAt = Instant.parse(fields.getValue("updated")),contacts = contacts)
 
 /** Independent key and store. Copy, verify and only then clear legacy organiser Safety. */
 class PrivateSafetyRepository(private val privateProvider: () -> PrivateSafetyDatabase,
@@ -50,6 +79,16 @@ class PrivateSafetyRepository(private val privateProvider: () -> PrivateSafetyDa
     suspend fun save(plan: SafetyPlanEntity, contacts: List<SupportContactEntity>) {
         require(plan.id == 1 && contacts.size <= 100 && contacts.all { it.planId == 1 })
         require(contacts.map { it.id }.distinct().size == contacts.size)
-        database().safetyDao().saveFullPlan(plan, contacts)
+        val db = database()
+        db.withTransaction { db.safetyDao().saveFullPlan(plan, contacts); db.draftDao().clear() }
+    }
+    suspend fun loadDraft(): SafetyPlan? = database().draftDao().get()?.let {
+        Json.decodeFromString<PrivateDraft>(it.content).plan()
+    }
+    suspend fun saveDraft(plan: SafetyPlan) {
+        require(plan.contacts.size <= 100)
+        val value = Json.encodeToString(plan.draft())
+        require(value.toByteArray(Charsets.UTF_8).size <= 8 * 1024 * 1024)
+        database().draftDao().save(SafetyDraftEntity(content = value))
     }
 }

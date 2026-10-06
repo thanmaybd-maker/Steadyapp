@@ -34,10 +34,29 @@ class ActivityAlarmAdapter(private val context: Context) {
             PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) ?: return
         manager.cancel(pending); pending.cancel()
     }
+    fun scheduleRest(value: com.thanu.steady.domain.WorkoutRest) {
+        if(value.complete) return
+        val pending = PendingIntent.getBroadcast(context, 0, Intent(context, ActivityAlarmReceiver::class.java).apply {
+            action = "com.thanu.steady.REST_COMPLETE"
+            data = Uri.Builder().scheme("steady").authority("rest").appendPath(value.sessionId).build()
+            putExtra("id",value.id); putExtra("generation",value.generation)
+        }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        if(Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms()) {
+            try { manager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,value.deadlineElapsed,pending); return }
+            catch (_: SecurityException) { /* Use the disclosed inexact fallback. */ }
+        }
+        manager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,value.deadlineElapsed,pending)
+    }
+    fun cancelRest(id: String) {
+        val pending = PendingIntent.getBroadcast(context,0,Intent(context,ActivityAlarmReceiver::class.java).apply {
+            action = "com.thanu.steady.REST_COMPLETE"; data = Uri.Builder().scheme("steady").authority("rest").appendPath(id).build()
+        },PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) ?: return
+        manager.cancel(pending); pending.cancel()
+    }
 }
 class ActivityAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != "com.thanu.steady.ACTIVITY_COMPLETE") return
+        if (intent.action !in setOf("com.thanu.steady.ACTIVITY_COMPLETE","com.thanu.steady.REST_COMPLETE")) return
         val id = intent.getStringExtra("id") ?: return
         val generation = intent.getIntExtra("generation", -1)
         if (generation < 0) return
@@ -45,7 +64,10 @@ class ActivityAlarmReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val container = (context.applicationContext as SteadyApplication).container
-                container.activityRepository.complete(id, generation)?.let {
+                if(intent.action == "com.thanu.steady.REST_COMPLETE") container.activityRepository.completeRest(id,generation)?.let {
+                    container.notificationAdapter.showTimerCompleteNotification("rest:${it.id}",it.cueFlags)
+                } else container.activityRepository.complete(id, generation)?.let {
+                    container.activityAlarms.cancelRest(it.id)
                     container.notificationAdapter.showTimerCompleteNotification(it.id, it.cueFlags)
                 }
             } catch (_: Exception) { /* Preserve records; never log personal callback metadata or fabricate a cue. */ }

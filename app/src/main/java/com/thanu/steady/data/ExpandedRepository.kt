@@ -13,7 +13,7 @@ data class PeriodSnapshot(val start: LocalDate, val end: LocalDate, val profile:
     val sessions: List<ActivitySession>, val segments: List<ActivitySegment>, val active: List<ActivitySession>,
     val subjects: List<Subject>, val water: List<WaterLog>, val sleep: List<SleepLog>, val foods: List<FoodIdeaRecord>,
     val meals: List<MealLog>, val care: List<CareReminder>, val careLogs: List<CareLog>, val captures: List<Capture>,
-    val observations: List<ActivityObservation>, val reflection: Reflection?)
+    val observations: List<ActivityObservation>, val reflection: Reflection?, val notes: List<SessionNote> = emptyList())
 
 class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: Clock,
     private val preferences: PreferencesRepository) {
@@ -32,7 +32,11 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         require(value.focusTargetMinutes == null || value.focusTargetMinutes in 1..1440)
         require(value.stepTarget == null || value.stepTarget > 0)
         val cards = value.dashboard.split(',').filter(String::isNotBlank)
-        require(cards.distinct().size == cards.size && cards.all { it in setOf("NEXT", "RINGS", "TIMELINE", "HABITS", "CAPTURE", "FOOD") })
+        val supported = setOf("NEXT", "RINGS", "TIMELINE", "HABITS", "CAPTURE", "FOOD", "ROUTINES")
+        require(cards.distinct().size == cards.size && cards.all { it in supported })
+        require(value.wideCards.split(',').filter(String::isNotBlank).all { it in supported })
+        require(value.modules.split(',').filter(String::isNotBlank).all { it in setOf("PLAN","HABITS","FOCUS","MOVEMENT","FOOD","WATER","SLEEP") })
+        require(value.dateStyle in setOf("LOCAL","ISO") && value.zoneMode in setOf("FIXED","DEVICE"))
         provider().expandedDao().save(value)
     }
     suspend fun prepareDay(day: LocalDate) {
@@ -61,7 +65,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
             }
         }
     }
-    suspend fun snapshot(start: LocalDate, end: LocalDate): PeriodSnapshot {
+    suspend fun snapshot(start: LocalDate, end: LocalDate, forExport: Boolean = false): PeriodSnapshot {
         require(!end.isBefore(start) && java.time.temporal.ChronoUnit.DAYS.between(start, end) <= 366)
         val db = provider()
         return db.withTransaction {
@@ -90,7 +94,11 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
                 segments, dao.activeSessions(), dao.subjects(),
                 dao.water(start.toString(), end.toString()), dao.sleep(start.toString(), end.toString()), dao.foods(),
                 dao.meals(start.toString(), end.toString()), dao.care(), dao.careLogs(start.toString(), end.toString()),
-                dao.captures(), dao.observations(start.toString(), end.toString()), dao.reflection(start.toString(), end.toString()))
+                if (forExport) dao.capturesInRange(begin, stop) else dao.captures(), dao.observations(start.toString(), end.toString()), dao.reflection(start.toString(), end.toString()),
+                if (forExport) dao.notesInRange(begin, stop).filter { note ->
+                    if (note.sessionId != null) sessions.any { it.id == note.sessionId }
+                    else LogicalDayPolicy().getLogicalDay(Instant.ofEpochMilli(note.savedAt), ZoneId.of(p.zoneId), p.boundaryMinutes) in start..end
+                } else emptyList())
         }
     }
     suspend fun observe(start: LocalDate, end: LocalDate): Flow<PeriodSnapshot> {
@@ -113,6 +121,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         UUID.fromString(item.id); LocalDate.parse(item.day); ZoneId.of(item.zone)
         require(item.title.isNotBlank() && item.title.length <= 500 && item.notes.length <= 100_000)
         require(item.boundary in 0..1439 && item.priority in 0..2 && item.state in setOf("PENDING", "COMPLETED", "ARCHIVED"))
+        require(item.category in setOf("STUDY","BUILD","MOVEMENT","GENERAL") && (item.projectId == null || item.projectId.length <= 200))
         require(item.plannedSeconds == null || item.plannedSeconds in 1..86_400)
         require(item.timeMinutes == null || item.timeMinutes in 0..1439)
         val db = provider()
@@ -192,6 +201,21 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         require(subject.title.isNotBlank() && subject.title.length <= 500 && subject.code.length <= 100)
         provider().expandedDao().save(subject)
     }
+    suspend fun topics(subjectId: String) = provider().expandedDao().topics(subjectId)
+    suspend fun saveTopic(topic: Topic) {
+        require(topic.title.isNotBlank() && topic.title.length <= 500 && topic.state in setOf("NEW","ACTIVE","DONE"))
+        val db = provider()
+        db.withTransaction { require(db.expandedDao().subject(topic.subjectId) != null); db.expandedDao().save(topic) }
+    }
+    suspend fun habitNote(id: String, text: String) {
+        require(text.length <= 100_000)
+        val db = provider()
+        db.withTransaction { val old = requireNotNull(db.expandedDao().occurrence(id)); db.expandedDao().save(old.copy(notes = text,updated = clock.millis())) }
+    }
+    suspend fun correctHabit(id: String, quantity: Double, note: String) {
+        val db = provider()
+        db.withTransaction { logHabit(id,quantity,newId()); habitNote(id,note) }
+    }
     suspend fun saveNote(note: SessionNote) {
         require(note.text.length <= 100_000)
         val db = provider()
@@ -222,6 +246,17 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
     suspend fun saveCare(reminder: CareReminder) {
         require(reminder.instruction.isNotBlank() && reminder.instruction.length <= 10_000 && reminder.weekdays in 1..127 && reminder.minute in 0..1439)
         provider().expandedDao().save(reminder)
+    }
+    suspend fun deleteCare(id: String) {
+        // Keep a disabled definition so historical care logs retain their relationship and snapshot.
+        val dao = provider().expandedDao(); val old = dao.care().first { it.id == id }; dao.save(old.copy(enabled = false,updated = clock.millis()))
+    }
+    suspend fun reminderSettings(profile: ExpandedProfile, cues: Int, pauseNewDays: Boolean) {
+        val db = provider()
+        db.withTransaction {
+            saveProfile(profile)
+            preferences.update { it.copy(cueFlags = cues,pauseEnabled = pauseNewDays) }
+        }
     }
     suspend fun saveCareLog(log: CareLog) = provider().expandedDao().save(log)
     suspend fun saveReflection(value: Reflection) {

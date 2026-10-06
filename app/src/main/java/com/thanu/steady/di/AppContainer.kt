@@ -13,6 +13,7 @@ class AppContainer(private val context: Context) {
     val keyManager by lazy { DatabaseKeyManager(context) }
     val alarmAdapter by lazy { AlarmAdapter(context) }
     val activityAlarms by lazy { com.thanu.steady.platform.ActivityAlarmAdapter(context) }
+    val routineReminders by lazy { com.thanu.steady.platform.RoutineReminders(context,{ database },clock) }
     val notificationAdapter by lazy { NotificationAdapter(context) }
     val documentAdapter by lazy { com.thanu.steady.platform.DocumentAdapter(context) }
     val bootstrap by lazy { com.thanu.steady.platform.BootstrapStore(context) }
@@ -27,6 +28,7 @@ class AppContainer(private val context: Context) {
             System.loadLibrary("sqlcipher")
             return Room.databaseBuilder(context, com.thanu.steady.data.PrivateSafetyDatabase::class.java, "steady_safety.db")
                 .openHelperFactory(SupportOpenHelperFactory(privateKeyManager.getOrGenerateDatabasePassphrase()))
+                .addMigrations(com.thanu.steady.data.SAFETY_MIGRATION_1_2)
                 .build().also { openSafetyDatabase = it }
         }
     val privateSafetyRepository by lazy { com.thanu.steady.data.PrivateSafetyRepository({ safetyDatabase }, { database }) }
@@ -56,6 +58,7 @@ class AppContainer(private val context: Context) {
 
     @Synchronized
     fun deleteLocalData() {
+        routineReminders.cancelAll()
         openDatabase?.close()
         openDatabase = null
         openSafetyDatabase?.close()

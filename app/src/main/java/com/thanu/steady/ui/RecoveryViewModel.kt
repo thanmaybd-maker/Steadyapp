@@ -39,7 +39,8 @@ data class SettingsUiState(
     val backupReady: Boolean = false,
     val restoreCounts: List<Int>? = null,
     val restoreRange: String = "",
-    val importCompleted: Boolean = false
+    val importCompleted: Boolean = false,
+    val legacyRestore: Boolean = false
 )
 
 class SettingsViewModel(
@@ -135,7 +136,7 @@ class SettingsViewModel(
                 preparedRestore = snapshot
                 _uiState.update { it.copy(
                     restoreCounts = listOf(snapshot.plans.size + (snapshot.expanded?.recordCount ?: 0), snapshot.reviews.size, snapshot.timers.size),
-                    restoreRange = listOfNotNull(snapshot.firstDay, snapshot.lastDay).joinToString(" – ")
+                    restoreRange = listOfNotNull(snapshot.firstDay, snapshot.lastDay).joinToString(" – "),legacyRestore = snapshot.expanded == null
                 ) }
             } finally { passphrase.fill('\u0000') }
         }
@@ -148,7 +149,7 @@ class SettingsViewModel(
         val snapshot = preparedRestore ?: return
         work(R.string.restore_failed) {
             val oldTimers = repository.replace(snapshot)
-            oldTimers.forEach { alarms.cancelAlarm(it); activityAlarms?.cancel(it) }
+            oldTimers.forEach { alarms.cancelAlarm(it); activityAlarms?.cancel(it); activityAlarms?.cancelRest(it) }
             notifications.cancelAll()
             preparedRestore = null
             _uiState.update { it.copy(restoreCounts = null, importCompleted = true, statusMessage = R.string.restore_success) }
@@ -156,7 +157,7 @@ class SettingsViewModel(
     }
     fun importHandled() { _uiState.update { it.copy(importCompleted = false) } }
     fun clearLocalData() = work(R.string.delete_failed) {
-        repository.cancelPending(alarms::cancelAlarm) { activityAlarms?.cancel(it) }
+        repository.cancelPending(alarms::cancelAlarm) { activityAlarms?.cancel(it); activityAlarms?.cancelRest(it) }
         deleteLocal()
         clearBootstrap()
         _uiState.update { it.copy(importCompleted = true, statusMessage = R.string.delete_success) }

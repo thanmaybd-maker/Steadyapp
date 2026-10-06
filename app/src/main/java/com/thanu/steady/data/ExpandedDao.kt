@@ -54,8 +54,11 @@ interface ExpandedDao {
     @Query("DELETE FROM activity_segment WHERE sessionId = :id") suspend fun deleteSegments(id: String)
     @Query("SELECT * FROM session_note WHERE id = :id") suspend fun note(id: String): SessionNote?
     @Query("SELECT * FROM session_note WHERE sessionId = :id ORDER BY savedAt") suspend fun notes(id: String): List<SessionNote>
+    @Query("SELECT n.* FROM session_note n LEFT JOIN activity_session s ON s.id = n.sessionId WHERE n.id NOT LIKE 'draft:%' AND n.id NOT LIKE 'program:%' AND n.id NOT LIKE 'rest:%' AND n.id NOT LIKE 'delivery:%' AND ((n.sessionId IS NULL AND n.savedAt BETWEEN :start AND :end) OR (s.started <= :end AND (s.ended IS NULL OR s.ended >= :start))) ORDER BY n.savedAt")
+    suspend fun notesInRange(start: Long, end: Long): List<SessionNote>
     @Upsert suspend fun save(value: SessionNote)
     @Query("DELETE FROM session_note WHERE id = :id") suspend fun deleteNote(id: String)
+    @Query("SELECT COUNT(*) FROM session_note WHERE id LIKE 'delivery:' || :day || ':%'") suspend fun reminderCount(day: String): Int
     @Query("SELECT * FROM exercise_set WHERE sessionId = :id ORDER BY position,doneAt") suspend fun sets(id: String): List<ExerciseSet>
     @Upsert suspend fun save(value: ExerciseSet)
     @Query("DELETE FROM exercise_set WHERE id = :id") suspend fun deleteSet(id: String)
@@ -84,6 +87,7 @@ interface ExpandedDao {
     @Query("SELECT * FROM reflection WHERE startDay = :start AND endDay = :end") suspend fun reflection(start: String, end: String): Reflection?
     @Upsert suspend fun save(value: Reflection)
     @Query("SELECT * FROM capture WHERE archived = 0 ORDER BY created DESC LIMIT 200") suspend fun captures(): List<Capture>
+    @Query("SELECT * FROM capture WHERE created BETWEEN :start AND :end ORDER BY created") suspend fun capturesInRange(start: Long, end: Long): List<Capture>
     @Upsert suspend fun save(value: Capture)
     @Upsert suspend fun save(value: InterruptionEvent)
     @Query("SELECT * FROM interruption_event WHERE at BETWEEN :start AND :end ORDER BY at DESC") suspend fun interruptions(start: Long, end: Long): List<InterruptionEvent>

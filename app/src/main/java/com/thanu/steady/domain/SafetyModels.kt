@@ -2,6 +2,7 @@ package com.thanu.steady.domain
 
 import java.time.Instant
 
+@kotlinx.serialization.Serializable
 data class SupportContact(
     val id: String,
     val role: String, // first, backup, clinic, other

@@ -129,7 +129,7 @@ data class ExpandedProfile(@PrimaryKey val id: Int = 1, val displayName: String 
     val onboarded: Boolean = false, val country: String = "IN", val palette: String = "KINETIC",
     val theme: String = "SYSTEM", val highContrast: Boolean = false, val reducedMotion: Boolean = false,
     val textScale: Float = 1f, val modules: String = "PLAN,HABITS,FOCUS,MOVEMENT,FOOD,WATER,SLEEP",
-    val dashboard: String = "NEXT,RINGS,TIMELINE,HABITS,CAPTURE,FOOD", val wideCards: String = "NEXT",
+    val dashboard: String = "NEXT,RINGS,ROUTINES,TIMELINE,HABITS,CAPTURE,FOOD", val wideCards: String = "NEXT",
     val focusTargetMinutes: Int? = null, val waterTargetMl: Int? = null, val stepTarget: Long? = null,
     val weightKg: Double? = null, val quietStart: Int = 1320, val quietEnd: Int = 420,
     val alertBudget: Int = 5, val dateStyle: String = "LOCAL", val zoneMode: String = "FIXED")

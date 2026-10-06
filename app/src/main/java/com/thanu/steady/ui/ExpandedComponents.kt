@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
@@ -23,9 +24,11 @@ import com.thanu.steady.R
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).imePadding().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp), content = content)
 }
+val LocalRoomyCard = staticCompositionLocalOf { true }
 @Composable fun SectionCard(@StringRes title: Int, content: @Composable ColumnScope.() -> Unit) {
+    val roomy = LocalRoomyCard.current
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(if(roomy) 24.dp else 12.dp), verticalArrangement = Arrangement.spacedBy(if(roomy) 16.dp else 8.dp)) {
             Text(stringResource(title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             content()
         }

@@ -24,7 +24,6 @@ object ExpandedMarkdown {
                     appendLine("- ${occurrence.day} · ${line(version.title)} · ${occurrence.quantity} / ${version.target} ${line(version.unit)} · ${occurrence.state}")
                     if(includeNotes && occurrence.notes.isNotBlank()) appendLine("    Notes: ${line(occurrence.notes)}") }
             }
-            val sessions = p.sessions.associateBy { it.id }
             fun activities(type: String) {
                 p.sessions.filter { it.type == type && it.state != "DISCARDED" }.forEach { s ->
                     val spans = p.segments.filter { it.sessionId == s.id && it.endWall != null }.mapNotNull {
@@ -36,6 +35,9 @@ object ExpandedMarkdown {
                     val actual = ActivityTotals.unionMillis(spans)/1000
                     appendLine("- ${line(s.title)} · ${s.kind} · ${actual} actual seconds in period · ${s.state} · ${s.source}")
                     if(includeNotes && s.notes.isNotBlank()) appendLine("    Notes: ${line(s.notes)}")
+                    if(includeNotes) p.notes.filter { it.sessionId == s.id && it.text.isNotBlank() }.forEach {
+                        appendLine("    Scratchpad:"); appendLine("    ${line(it.text)}")
+                    }
                 }
             }
             if("FOCUS" in selected) section("Focus") { activities("FOCUS") }
@@ -56,7 +58,11 @@ object ExpandedMarkdown {
             if("CAPTURE" in selected) section("Captures") { p.captures.filter {
                 val day = com.thanu.steady.domain.LogicalDayPolicy().getLogicalDay(java.time.Instant.ofEpochMilli(it.created),ZoneId.of(p.preferences.zoneId),p.preferences.boundaryMinutes)
                 day in p.start..p.end
-            }.forEach { appendLine("- ${line(it.text)}") } }
+            }.forEach { appendLine("- ${line(it.text)}") }
+                if(includeNotes) p.notes.filter { it.sessionId == null && it.text.isNotBlank() }.forEach {
+                    appendLine("- Scratchpad: ${line(it.text)}")
+                }
+            }
             appendLine("Private Safety, contacts, credentials, device keys and route geometry are excluded.")
         }
     }

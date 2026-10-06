@@ -21,6 +21,17 @@ class NotificationAdapter(private val context: Context) {
             Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
 
     // Channels are immutable after creation; each sound/haptic choice has its own channel.
+    fun showRoutineReminder(): Boolean {
+        if(!canNotify()) return false
+        val id = "steady_routine_reminders"
+        notificationManager.createNotificationChannel(NotificationChannel(id,context.getString(R.string.reminder_settings),NotificationManager.IMPORTANCE_DEFAULT))
+        val launch = android.app.PendingIntent.getActivity(context,0,android.content.Intent(context,com.thanu.steady.MainActivity::class.java),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        val value = NotificationCompat.Builder(context,id).setSmallIcon(R.drawable.ic_launcher)
+            .setContentTitle(context.getString(R.string.reminder_notification_title)).setContentText(context.getString(R.string.reminder_notification_body))
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC).setContentIntent(launch).setAutoCancel(true).build()
+        return try { notificationManager.notify("routine",2,value); true } catch (_: SecurityException) { false }
+    }
     fun showTimerCompleteNotification(sessionId: String, cueFlags: Int = 3): Boolean {
         if (!canNotify()) return false
         val flags = cueFlags and 3
