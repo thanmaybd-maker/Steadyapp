@@ -51,6 +51,8 @@ import java.time.LocalDate
         SectionCard(R.string.review_summary) {
             if("FOCUS" in visibleCards) {
             Text(stringResource(R.string.focus_actual_minutes, focusMillis(period) / 60_000.0))
+            val reported = period.sessions.filter { it.source == LegacyOgCodec.SOURCE }.sumOf { it.activeMillis }
+            if(reported > 0) Text(stringResource(R.string.legacy_og_reported_total,reported / 60_000))
             val focus = period.sessions.filter { it.type == "FOCUS" && completedInPeriod(it,period) }
             Text(stringResource(R.string.focus_session_count, focus.size))
             period.subjects.forEach { subject ->
@@ -109,7 +111,7 @@ import java.time.LocalDate
             }
             period.sessions.filter { it.state !in setOf("RUNNING", "PAUSED", "INTERRUPTED") }.forEach { session ->
                 Text(session.title)
-                Text(stringResource(R.string.actual_seconds, session.activeMillis / 1000))
+                Text(stringResource(if(session.source == LegacyOgCodec.SOURCE) R.string.legacy_og_reported_seconds else R.string.actual_seconds, session.activeMillis / 1000))
                 SecondaryAction(R.string.edit_session) { editor = session }
                 SecondaryAction(R.string.delete_action, !state.busy) { model.deleteHistory(session.id) }
             }

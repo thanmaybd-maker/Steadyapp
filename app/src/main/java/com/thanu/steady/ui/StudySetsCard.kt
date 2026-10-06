@@ -38,7 +38,7 @@ import com.thanu.steady.data.Capture
         }
         history.forEach { session ->
             Text(session.title, color = MaterialTheme.colorScheme.onSurface)
-            Text(stringResource(R.string.actual_seconds, session.activeMillis / 1000))
+            Text(stringResource(if(session.source == com.thanu.steady.data.LegacyOgCodec.SOURCE) R.string.legacy_og_reported_seconds else R.string.actual_seconds, session.activeMillis / 1000))
             session.effort?.let { Text(stringResource(R.string.effort_value, it)) }
         }
         if (tasks.isEmpty() && current == null && history.isEmpty()) Text(stringResource(R.string.empty_tasks))

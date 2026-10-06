@@ -40,7 +40,12 @@ data class SettingsUiState(
     val restoreCounts: List<Int>? = null,
     val restoreRange: String = "",
     val importCompleted: Boolean = false,
-    val legacyRestore: Boolean = false
+    val legacyRestore: Boolean = false,
+    val legacyPreview: String? = null,
+    val legacyCounts: List<Int>? = null,
+    val legacyZone: String = "",
+    val legacyRange: String = "",
+    val legacyResult: List<Int>? = null
 )
 
 class SettingsViewModel(
@@ -61,6 +66,28 @@ class SettingsViewModel(
     private var preparedBackup: ByteArray? = null
     private var preparedRestore: RecoverySnapshot? = null
     private var backupSnapshot: RecoverySnapshot? = null
+    private var preparedLegacy: com.thanu.steady.data.LegacyOgImport? = null
+    fun prepareLegacy(uri: Uri?) {
+        if(uri == null) { status(R.string.file_cancelled); return }
+        if(_uiState.value.isProcessing) return
+        cancelLegacy()
+        work(R.string.legacy_og_invalid) {
+            val text = documentAdapter.readLegacyJsonFromUri(uri) ?: error("Unreadable legacy file")
+            val prepared = com.thanu.steady.data.LegacyOgCodec.decode(text,repository.legacyZone(),clock.millis())
+            preparedLegacy = prepared
+            _uiState.update { it.copy(legacyPreview=prepared.preview,legacyCounts=prepared.counts,legacyZone=prepared.zone,
+                legacyRange=listOfNotNull(prepared.firstDay,prepared.lastDay).distinct().joinToString(" – "),legacyResult=null) }
+        }
+    }
+    fun cancelLegacy() { preparedLegacy=null; _uiState.update { it.copy(legacyPreview=null,legacyCounts=null) } }
+    fun confirmLegacy() {
+        val prepared = preparedLegacy ?: return
+        work(R.string.legacy_og_failed) {
+            val result = repository.importLegacy(prepared)
+            preparedLegacy=null
+            _uiState.update { it.copy(legacyPreview=null,legacyCounts=null,legacyResult=listOf(result.added,result.skipped),statusMessage=R.string.legacy_og_success) }
+        }
+    }
     fun setExportEnd(value: String) { _uiState.update { it.copy(exportEnd=value.take(10),markdownPreview=null) } }
     fun category(key: String,enabled: Boolean) { _uiState.update { it.copy(categories=if(enabled) it.categories+key else it.categories-key,markdownPreview=null) } }
     fun routes(enabled: Boolean) { backupSnapshot=null; _uiState.update { it.copy(includeRoutes=enabled,backupCounts=null) } }
@@ -178,6 +205,6 @@ class SettingsViewModel(
         }
     }
     override fun onCleared() {
-        preparedBackup?.fill(0); preparedRestore = null; backupSnapshot=null
+        preparedBackup?.fill(0); preparedRestore = null; backupSnapshot=null; preparedLegacy=null
     }
 }

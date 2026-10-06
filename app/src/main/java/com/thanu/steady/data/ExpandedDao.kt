@@ -55,7 +55,7 @@ interface ExpandedDao {
     @Query("SELECT * FROM session_note WHERE id = :id") suspend fun note(id: String): SessionNote?
     @Query("SELECT * FROM session_note WHERE id LIKE :prefix ORDER BY savedAt") suspend fun notesWithPrefix(prefix: String): List<SessionNote>
     @Query("SELECT * FROM session_note WHERE sessionId = :id ORDER BY savedAt") suspend fun notes(id: String): List<SessionNote>
-    @Query("SELECT n.* FROM session_note n LEFT JOIN activity_session s ON s.id = n.sessionId WHERE n.id NOT LIKE 'draft:%' AND n.id NOT LIKE 'program:%' AND n.id NOT LIKE 'rest:%' AND n.id NOT LIKE 'delivery:%' AND n.id NOT LIKE 'ambient:%' AND n.id NOT LIKE 'study-block%' AND n.id NOT LIKE 'recipe-context:%' AND n.id NOT LIKE 'meal-adoption:%' AND ((n.sessionId IS NULL AND n.savedAt BETWEEN :start AND :end) OR (s.started <= :end AND (s.ended IS NULL OR s.ended >= :start))) ORDER BY n.savedAt")
+    @Query("SELECT n.* FROM session_note n LEFT JOIN activity_session s ON s.id = n.sessionId WHERE n.id NOT LIKE 'draft:%' AND n.id NOT LIKE 'program:%' AND n.id NOT LIKE 'rest:%' AND n.id NOT LIKE 'delivery:%' AND n.id NOT LIKE 'ambient:%' AND n.id NOT LIKE 'study-block%' AND n.id NOT LIKE 'recipe-context:%' AND n.id NOT LIKE 'meal-adoption:%' AND n.id NOT LIKE 'legacy-og:%' AND ((n.sessionId IS NULL AND n.savedAt BETWEEN :start AND :end) OR (s.started <= :end AND (s.ended IS NULL OR s.ended >= :start))) ORDER BY n.savedAt")
     suspend fun notesInRange(start: Long, end: Long): List<SessionNote>
     @Upsert suspend fun save(value: SessionNote)
     @Query("DELETE FROM session_note WHERE id = :id") suspend fun deleteNote(id: String)

@@ -31,4 +31,14 @@ class DocumentProviderTest {
         RandomAccessFile(File(context.cacheDir,"qa-document-oversized.bin"),"rw").use { it.setLength(PortableCodec.MAX_BYTES.toLong()+61) }
         assertNull(adapter.readBackupFromUri(uri("oversized")))
     }
+    @Test fun legacyJsonUsesStrictUtf8AndItsSmallerBoundWithoutReturningPartialInput() {
+        val adapter=DocumentAdapter(context)
+        val text="{\"plans\":[],\"synthetic\":\"α\"}"
+        assertTrue(adapter.writeMarkdownToUri(uri("roundtrip"),text))
+        assertEquals(text,adapter.readLegacyJsonFromUri(uri("roundtrip")))
+        assertTrue(adapter.writeBackupToUri(uri("roundtrip"),byteArrayOf(0xC3.toByte(),0x28)))
+        assertNull(adapter.readLegacyJsonFromUri(uri("roundtrip")))
+        RandomAccessFile(File(context.cacheDir,"qa-document-oversized.bin"),"rw").use { it.setLength(com.thanu.steady.data.LegacyOgCodec.MAX_BYTES.toLong()+1) }
+        assertNull(adapter.readLegacyJsonFromUri(uri("oversized")))
+    }
 }

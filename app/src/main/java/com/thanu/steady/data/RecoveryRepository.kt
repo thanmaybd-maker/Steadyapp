@@ -25,6 +25,8 @@ data class RecoverySnapshot(
 
 /** Only eligible organiser tables cross this boundary; Safety is never queried. */
 class RecoveryRepository(private val databaseProvider: () -> SteadyDatabase) {
+    suspend fun legacyZone(): String = databaseProvider().preferencesDao().get()?.zoneId ?: AppPreferences().zoneId
+    suspend fun importLegacy(import: LegacyOgImport): LegacyOgImportResult = LegacyOgImporter(databaseProvider).apply(import)
     suspend fun cancelPending(cancelLegacy: (String) -> Unit, cancelActivity: suspend (String) -> Unit) {
         try {
             val db = databaseProvider()

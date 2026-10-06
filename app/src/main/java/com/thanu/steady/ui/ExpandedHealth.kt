@@ -153,6 +153,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
             foods.forEach { recipe ->
                 Text(recipe.title, style = MaterialTheme.typography.titleMedium)
                 RecipeContextSummary(model,recipe,state.busy)
+                if(recipe.provenance == "LEGACY_OG_UNVERIFIED") Text(stringResource(R.string.legacy_og_food_unverified))
                 Text(recipe.ingredients); Text(recipe.instructions)
                 recipe.prepMinutes?.let { Text(stringResource(R.string.preparation_minutes, it)) }
                 Text(recipe.budget)
@@ -340,6 +341,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
     DraftEditor(model, state, key, R.string.edit_session, mapOf("seconds" to (session.activeMillis / 1000).toString(), "notes" to session.notes,
         "effort" to (session.effort?.toString() ?: "")), onSafety, onClose) { values, close ->
         TextInput(values["seconds"].orEmpty(), R.string.actual_seconds_field, { model.field(key, "seconds", it) })
+        if(session.source == LegacyOgCodec.SOURCE) Text(stringResource(R.string.legacy_og_correction))
         TextInput(values["notes"].orEmpty(), R.string.note_text, { model.field(key, "notes", it) }, 3)
         TextInput(values["effort"].orEmpty(), R.string.effort_optional, { model.field(key, "effort", it) })
         PrimaryAction(R.string.save_action, !state.busy) { model.action({ model.correctHistory(session.id,

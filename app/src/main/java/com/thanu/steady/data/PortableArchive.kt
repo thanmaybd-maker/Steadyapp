@@ -112,7 +112,7 @@ object PortableCodec {
         require(a.days.map { it.day }.distinct().size == a.days.size)
         require(a.notes.map { it.id }.distinct().size == a.notes.size)
         a.notes.forEach { require(!it.id.startsWith("draft:") && !it.id.startsWith("rest:") && !it.id.startsWith("delivery:") && it.id.length <= 200); text(it.text); require(it.sessionId == null || it.sessionId in sessionIds)
-            if(it.id.startsWith("ambient:") || it.id.startsWith("study-block") || it.id.startsWith("recipe-context:") || it.id.startsWith("meal-adoption:")) {
+            if(it.id.startsWith("ambient:") || it.id.startsWith("study-block") || it.id.startsWith("recipe-context:") || it.id.startsWith("meal-adoption:") || it.id.startsWith("legacy-og:")) {
                 require(it.sessionId == null)
                 StrictJsonStructure.check(it.text)
                 val json = format.parseToJsonElement(it.text)
@@ -139,6 +139,11 @@ object PortableCodec {
                         validateTypes(json,com.thanu.steady.domain.MealPlanAssociation.serializer().descriptor,true)
                         val association = format.decodeFromString<com.thanu.steady.domain.MealPlanAssociation>(it.text).also { a -> a.validate() }
                         require(it.id == "meal-adoption:${association.id}")
+                    }
+                    it.id.startsWith("legacy-og:") -> {
+                        validateTypes(json,LegacyOgReceipt.serializer().descriptor)
+                        val receipt = format.decodeFromString<LegacyOgReceipt>(it.text).also { r -> r.validate() }
+                        require(it.id == "legacy-og:${receipt.id}")
                     }
                     else -> error("Unknown organiser metadata")
                 }

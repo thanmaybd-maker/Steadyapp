@@ -1,0 +1,18 @@
+<resources>
+    <string name="legacy_og_title">Import from Steady OG</string>
+    <string name="legacy_og_choose">Choose OG JSON file</string>
+    <string name="legacy_og_preview">Review eligible OG records</string>
+    <string name="legacy_og_disclosure">Only plans, study sessions, food ideas and reviews are eligible. Private Safety notes are excluded. Existing records and reflections are kept. Reimporting identical records preserves edits and deletions. OG exports no source IDs: changed source records are new imports. Time slots remain unscheduled. Session durations are reported summaries with calendar anchors, not measured intervals, and are excluded from measured-time graphs. Food benefits, diet and generated review text are unverified legacy claims. Habits, workouts and alarms are not invented or activated.</string>
+    <string name="legacy_og_counts">Plans: %1$d · sessions: %2$d · food ideas: %3$d · reviews: %4$d</string>
+    <string name="legacy_og_policy">Legacy dates use calendar days in %1$s, without today’s logical-day boundary.</string>
+    <string name="legacy_og_row">Record %1$d of %2$d</string>
+    <string name="legacy_og_apply">Append eligible records</string>
+    <string name="legacy_og_result">Added %1$d records. Kept or previously imported: %2$d.</string>
+    <string name="legacy_og_success">OG organiser import saved.</string>
+    <string name="legacy_og_invalid">This OG file is unreadable, malformed, unsupported or exceeds the 5 MB / 5,000-record limit. Existing records were kept.</string>
+    <string name="legacy_og_failed">Import was not saved. Existing records and the preview were kept. You can retry.</string>
+    <string name="legacy_og_reported_seconds">OG reported duration: %1$d seconds. Calendar date only; excluded from measured-time graphs.</string>
+    <string name="legacy_og_reported_total">OG reported study duration in this range: %1$d minutes. Separate from measured-time totals.</string>
+    <string name="legacy_og_correction">This legacy duration has no measured intervals. Saving a correction creates an owner-entered interval at its calendar anchor and includes it in duration graphs.</string>
+    <string name="legacy_og_food_unverified">OG recipe: diet and benefit claims are unverified. Review ingredients before use.</string>
+</resources>

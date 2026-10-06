@@ -26,6 +26,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val legacyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument(),viewModel::prepareLegacy)
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) {
         viewModel.exportMarkdown(it)
     }
@@ -62,6 +63,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
             CircularProgressIndicator()
             Text(stringResource(R.string.processing))
         }
+        state.legacyResult?.let { Text(stringResource(R.string.legacy_og_result,it[0],it[1])) }
         Text(stringResource(R.string.markdown_title), style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(state.exportDate, viewModel::setExportDate,
             label = { Text(stringResource(R.string.export_date)) }, modifier = Modifier.fillMaxWidth(),
@@ -87,8 +89,34 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
             restoreLauncher.launch(arrayOf("application/octet-stream", "application/x-steady-backup", "*/*"))
         })
         Divider()
+        Text(stringResource(R.string.legacy_og_title),style=MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.legacy_og_disclosure))
+        ActionButton(R.string.legacy_og_choose,enabled=!state.isProcessing) { legacyLauncher.launch(arrayOf("application/json","text/plain","*/*")) }
+        Divider()
         Text(stringResource(R.string.delete_disclosure))
         ActionButton(R.string.delete_local_data, enabled = !state.isProcessing, onClick = { showDeleteConfirm = true })
+    }
+
+    state.legacyPreview?.let { preview ->
+        val rows = remember(preview) {
+            val root = kotlinx.serialization.json.Json.parseToJsonElement(preview) as kotlinx.serialization.json.JsonObject
+            root.values.flatMap { (it as kotlinx.serialization.json.JsonArray).toList() }.map { row ->
+                kotlinx.serialization.json.Json { prettyPrint=true }.encodeToString(kotlinx.serialization.json.JsonElement.serializer(),row)
+            }
+        }
+        var page by remember(preview) { mutableStateOf(0) }
+        AlertDialog(onDismissRequest={ if(!state.isProcessing) viewModel.cancelLegacy() },
+            title={ Text(stringResource(R.string.legacy_og_preview)) },
+            text={ Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                state.legacyCounts?.let { Text(stringResource(R.string.legacy_og_counts,it[0],it[1],it[2],it[3])) }
+                Text(stringResource(R.string.legacy_og_policy,state.legacyZone)); Text(state.legacyRange)
+                Text(stringResource(R.string.legacy_og_disclosure))
+                Text(stringResource(R.string.legacy_og_row,page+1,rows.size)); Text(rows[page])
+                ActionButton(R.string.review_previous,enabled=page>0 && !state.isProcessing) { page-- }
+                ActionButton(R.string.review_next,enabled=page<rows.lastIndex && !state.isProcessing) { page++ }
+            } },
+            confirmButton={ ActionButton(R.string.legacy_og_apply,enabled=!state.isProcessing,onClick=viewModel::confirmLegacy) },
+            dismissButton={ ActionButton(R.string.cancel,enabled=!state.isProcessing,onClick=viewModel::cancelLegacy) })
     }
 
     state.markdownPreview?.let { preview ->
