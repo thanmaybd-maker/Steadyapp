@@ -1,6 +1,58 @@
 # Steady M01-M08 Verification Audit
 
-This audit evaluates the current source code implementation against the architectural requirements. Actual on-device testing and APK assembly are marked BLOCKED.
+## Superseding audit — 6 October 2026
+
+Build/setup code checkpoint `5ec62ab`, source checkpoint `d33cce2`. The current
+Gradle failure is missing Java, not a demonstrated Gradle hang. The Android SDK is
+absent from inspected locations. No milestone is complete. See
+[current command evidence](build-gate-2026-10-06.md).
+
+The architecture supplied on this turn matches `BLUEPRINT.md` byte for byte.
+Its historical pause statement does not override the current finish request.
+The available Xiaomi 14 is reported by the user; actual API/build is unread over adb.
+
+### Source findings that must be resolved
+
+- M01: build/resource configuration repaired as a candidate, but compilation,
+  five-screen navigation, back/insets, resource strings, contrast and maximum-font/
+  TalkBack acceptance remain untested. User-visible text is largely hard-coded.
+- M02: no repository boundary; ViewModels access DAOs. Key files are written
+  separately and missing material can trigger secret regeneration. Failure/reopen/
+  encrypted sidecars/migration evidence absent; Room schemas not generated yet.
+- M03: pause only changes memory, shutdown is missing, clock is not injected,
+  repeated save overwrites creation time, and failed/concurrent saves need review.
+- M04: MainActivity accesses the database before navigation, and the Safety
+  ViewModel factory also evaluates the database before its error handling. Key-open
+  failure can therefore prevent public help. Contacts are not editable, app lock is
+  absent, and dialer failure is not handled. Public numbers were rechecked against
+  official sources; that does not verify device access.
+- M05: save errors are swallowed, UI advances before commit, boot marker is a stub,
+  AlarmReceiver ignores generation/persisted state and logs linkable IDs/times.
+  Multiple/replaced callbacks, recovery, notification permission and cue modes need
+  implementation and device tests.
+- M06: week-end selection is missing, current date ignores the logical-day policy,
+  and loading/saving lacks error handling. Missing-day/evidence projection needs checks.
+- M07: BackupService returns a plaintext marker instead of authenticated encryption;
+  backup data is hard-coded empty; restore, SAF picker actions, exact preview and app
+  lock are absent. DocumentAdapter can report success when no output stream exists.
+  Deletion only calls clearAllTables, contrary to its key/file/alarm wipe description.
+  Export strings contain escaped interpolation and do not export actual values.
+- M08: no APK, installed app, checksum/signing fingerprint or primary-device results.
+  Ten-year data/recovery/performance and accessibility criteria remain unperformed.
+
+Next action: complete the JDK/SDK dependency spike after SDK-licence agreement,
+then fix and verify bounded milestones. Keep all release gates open.
+
+### Public-number source check
+
+Checked 6 October 2026: [DGHS Tele-MANAS](https://dghs.mohfw.gov.in/national-mental-health-programme.php)
+supports short code 14416; [ERSS](https://112.gov.in/) supports 112. No dialer was
+opened and no real emergency call was made.
+
+## Historical generated-source audit — superseded
+
+The following imported text is preserved as history. Its completeness and verification
+claims must not be used as current results; the findings above supersede it.
 
 ## M01: Scaffold & Navigation
 - **Criteria**: Base Compose project, navigation wiring, no INTERNET permission.

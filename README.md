@@ -1,28 +1,53 @@
 # Steady
 
-**A private, accessible daily workspace.**
+An offline Android organiser for one user, scoped to Today, Break, Safety, Review
+and Settings. The architecture and acceptance contract are in `BLUEPRINT.md`.
 
-Steady helps you manage daily priorities, breaks, and personal reflection without the pressure of streaks, overdue tasks, or visual clutter. It is built entirely offline, keeps your data encrypted locally, and is optimized for accessibility.
+## Current status
 
-## Build Instructions & Precise Remaining Blocker
+**Incomplete; no APK or verified personal-use release exists.** The imported source
+contains unimplemented recovery and file-picker flows, missing access controls,
+and timer/storage defects. The previous checked milestone list overstated progress.
+Use synthetic data only in this development scaffold.
 
-**Current State:**
-All architectural components (M01-M08), including Compose UI screens, Room/SQLCipher database setup, state machines, and AlarmManager/Notification adapters, have been implemented.
+On this Windows host, all four required Gradle commands exit with code 1 because
+Java is absent. No Android SDK was discovered. The earlier Linux Gradle hang has
+not been reproduced here. See `docs/evidence/m08.md` and
+`docs/evidence/m01_m08_audit.md` for the current audit.
 
-**The Blocker:**
-The environment used to generate this source code hangs indefinitely during Gradle execution. Commands like `gradle wrapper` and `./gradlew assembleDebug` hang without completing their bootstrap process. Therefore, APK assembly remains unresolved and BLOCKED on this host.
+The user has a Xiaomi 14 available for USB testing. Android/HyperOS values have
+been supplied; the actual API level/build must be read through adb before testing.
 
-**How to Build:**
-1. Extract this project to a standard laptop/desktop environment.
-2. Open the project in **Android Studio** (Koala or later, compatible with AGP 8.3+).
-3. Let the project sync using the included `gradlew` script and `gradle-wrapper.jar`.
-4. Click **Run 'app'** or execute:
-   `./gradlew assembleDebug testDebugUnitTest lintDebug`
-5. Install the generated APK on your Android device.
+## Build
 
-## Post-Build Verification Required
-Since the sandbox could not compile the APK, please perform the following tests on your device:
-- **TalkBack & Contrast Check:** Ensure touch targets are 56dp minimum and contrast is sufficient.
-- **Timer & Doze Reliability:** Trigger a focus timer, turn off the screen, wait 20+ minutes, and ensure `AlarmReceiver` wakes up the device to issue the haptic/sound notification. Do not claim survival of force-stop.
-- **SAF & SAF Backup:** Test the Markdown export and Encrypted portable backup destinations using the system document picker.
+The candidate configuration pins AGP 8.6.1, Gradle 8.7, Kotlin 1.9.22, Compose
+compiler 1.5.10, Compose BOM 2024.02.02, Room 2.6.1/KSP 1.9.22-1.0.17, and
+SQLCipher Android 4.9.0. These selections still need a successful dependency/build
+spike. SDK 35 and JDK 17 are required. The wrapper checks the Gradle archive SHA-256.
 
+Use [the Windows setup instructions](docs/build-setup.md). A prepared local setup
+script can install JDK/SDK tools after explicit SDK-licence agreement. With an
+existing JDK/SDK installation:
+
+```powershell
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:lintDebug
+.\gradlew.bat :app:connectedDebugAndroidTest
+```
+
+Connected checks require an authorised emulator or phone. Passing a build alone
+does not establish encrypted storage, accessible interaction, recovery, or timer
+reliability. Primary Xiaomi testing remains part of release acceptance.
+
+## Privacy and scope
+
+The intended release has no INTERNET permission, telemetry, accounts, automatic
+contact actions, or medical logic. Safety fields must stay device-only and must
+never appear in logs, export, portable backup, or screenshots. Use synthetic data
+for development and verification. Public help must work even when storage or
+authentication is unavailable.
+
+Export, backup, lock, deletion and device behaviour are requirements still to finish
+and verify, not currently working features. Do not distribute this scaffold as a
+completed application.
