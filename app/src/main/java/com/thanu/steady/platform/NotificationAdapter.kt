@@ -21,11 +21,14 @@ class NotificationAdapter(private val context: Context) {
             Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
 
     // Channels are immutable after creation; each sound/haptic choice has its own channel.
-    fun showRoutineReminder(): Boolean {
+    fun showRoutineReminder(route: String = "today"): Boolean {
         if(!canNotify()) return false
         val id = "steady_routine_reminders"
         notificationManager.createNotificationChannel(NotificationChannel(id,context.getString(R.string.reminder_settings),NotificationManager.IMPORTANCE_DEFAULT))
-        val launch = android.app.PendingIntent.getActivity(context,0,android.content.Intent(context,com.thanu.steady.MainActivity::class.java),
+        val launch = android.app.PendingIntent.getActivity(context,0,android.content.Intent(context,com.thanu.steady.MainActivity::class.java).apply {
+            data = android.net.Uri.Builder().scheme("steady").authority("reminder").appendPath(route).build()
+            putExtra("steady_reminder_route", route)
+        },
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
         val value = NotificationCompat.Builder(context,id).setSmallIcon(R.drawable.ic_launcher)
             .setContentTitle(context.getString(R.string.reminder_notification_title)).setContentText(context.getString(R.string.reminder_notification_body))
@@ -52,6 +55,9 @@ class NotificationAdapter(private val context: Context) {
             .setContentText(context.getString(R.string.timer_complete_detail))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(android.app.PendingIntent.getActivity(context, 0, android.content.Intent(context, com.thanu.steady.MainActivity::class.java).apply {
+                data = android.net.Uri.parse("steady://reminder/focus"); putExtra("steady_reminder_route", "focus")
+            }, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE))
             .setAutoCancel(true)
             .build()
         return try { notificationManager.notify(sessionId, 1, notification); true }

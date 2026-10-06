@@ -148,6 +148,7 @@ class SettingsViewModel(
     fun confirmRestore() {
         val snapshot = preparedRestore ?: return
         work(R.string.restore_failed) {
+            activityAlarms?.invalidatePending()
             val oldTimers = repository.replace(snapshot)
             oldTimers.forEach { alarms.cancelAlarm(it); activityAlarms?.cancel(it); activityAlarms?.cancelRest(it) }
             notifications.cancelAll()

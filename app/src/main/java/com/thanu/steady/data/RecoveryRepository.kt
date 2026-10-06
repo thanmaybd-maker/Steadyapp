@@ -25,7 +25,7 @@ data class RecoverySnapshot(
 
 /** Only eligible organiser tables cross this boundary; Safety is never queried. */
 class RecoveryRepository(private val databaseProvider: () -> SteadyDatabase) {
-    suspend fun cancelPending(cancelLegacy: (String) -> Unit, cancelActivity: (String) -> Unit) {
+    suspend fun cancelPending(cancelLegacy: (String) -> Unit, cancelActivity: suspend (String) -> Unit) {
         try {
             val db = databaseProvider()
             db.timerDao().getAll().forEach { cancelLegacy(it.id) }

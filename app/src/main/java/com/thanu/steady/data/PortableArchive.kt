@@ -72,19 +72,22 @@ object PortableCodec {
         require(envelope.organiser.recordCount + legacy.plans.size + legacy.reviews.size + legacy.timers.size <= MAX_RECORDS)
         return legacy.copy(expanded = envelope.organiser)
     }
-    private fun validateTypes(value: JsonElement, descriptor: SerialDescriptor) {
+    private fun validateTypes(value: JsonElement, descriptor: SerialDescriptor, allowDefaults: Boolean = false) {
         if (value == JsonNull) { require(descriptor.isNullable); return }
         when (descriptor.kind) {
             PrimitiveKind.STRING -> require(value is JsonPrimitive && value.isString)
             PrimitiveKind.BOOLEAN -> require(value is JsonPrimitive && !value.isString && value.booleanOrNull != null)
             PrimitiveKind.INT, PrimitiveKind.LONG -> require(value is JsonPrimitive && !value.isString && value.longOrNull != null)
             PrimitiveKind.FLOAT, PrimitiveKind.DOUBLE -> require(value is JsonPrimitive && !value.isString && value.doubleOrNull?.isFinite() == true)
-            StructureKind.LIST -> { require(value is JsonArray); value.forEach { validateTypes(it, descriptor.getElementDescriptor(0)) } }
+            StructureKind.LIST -> { require(value is JsonArray); value.forEach { validateTypes(it, descriptor.getElementDescriptor(0), allowDefaults) } }
             StructureKind.CLASS -> {
                 require(value is JsonObject)
                 val names = (0 until descriptor.elementsCount).map(descriptor::getElementName)
-                require(value.keys == names.toSet())
-                names.forEachIndexed { i, key -> validateTypes(value.getValue(key), descriptor.getElementDescriptor(i)) }
+                require(value.keys.all { it in names })
+                names.forEachIndexed { i, key ->
+                    require(key in value || allowDefaults && descriptor.isElementOptional(i))
+                    value[key]?.let { validateTypes(it, descriptor.getElementDescriptor(i), allowDefaults) }
+                }
             }
             else -> error("Unsupported archive structure")
         }
@@ -109,6 +112,27 @@ object PortableCodec {
         require(a.days.map { it.day }.distinct().size == a.days.size)
         require(a.notes.map { it.id }.distinct().size == a.notes.size)
         a.notes.forEach { require(!it.id.startsWith("draft:") && !it.id.startsWith("rest:") && !it.id.startsWith("delivery:") && it.id.length <= 200); text(it.text); require(it.sessionId == null || it.sessionId in sessionIds)
+            if(it.id.startsWith("ambient:") || it.id.startsWith("study-block")) {
+                require(it.sessionId == null)
+                StrictJsonStructure.check(it.text)
+                val json = format.parseToJsonElement(it.text)
+                when {
+                    it.id == "ambient:preferences" -> {
+                        validateTypes(json, com.thanu.steady.platform.AmbientPreferences.serializer().descriptor, true)
+                        format.decodeFromString<com.thanu.steady.platform.AmbientPreferences>(it.text).validate()
+                    }
+                    it.id == "study-block-settings" -> {
+                        validateTypes(json, com.thanu.steady.domain.StudyBlockSettings.serializer().descriptor, true)
+                        format.decodeFromString<com.thanu.steady.domain.StudyBlockSettings>(it.text)
+                    }
+                    it.id.startsWith("study-block:") -> {
+                        validateTypes(json, com.thanu.steady.domain.StudyBlockProposal.serializer().descriptor, true)
+                        val block = format.decodeFromString<com.thanu.steady.domain.StudyBlockProposal>(it.text).also { b -> b.validate() }
+                        require(it.id == "study-block:${block.id}")
+                    }
+                    else -> error("Unknown organiser metadata")
+                }
+            }
             if(it.id.startsWith("program:")) {
                 require(it.sessionId != null && it.id == "program:${it.sessionId}" && sessionById[it.sessionId]?.kind == "INTERVALS")
                 Json.decodeFromString<com.thanu.steady.domain.IntervalProgram>(it.text).validate()

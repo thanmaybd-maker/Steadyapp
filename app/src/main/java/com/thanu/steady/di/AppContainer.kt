@@ -13,10 +13,11 @@ class AppContainer(private val context: Context) {
     val keyManager by lazy { DatabaseKeyManager(context) }
     val alarmAdapter by lazy { AlarmAdapter(context) }
     val activityAlarms by lazy { com.thanu.steady.platform.ActivityAlarmAdapter(context) }
-    val routineReminders by lazy { com.thanu.steady.platform.RoutineReminders(context,{ database },clock) }
+    val routineReminders by lazy { com.thanu.steady.platform.RoutineReminders(context,{ database },clock) { isPrivateAccessible } }
     val notificationAdapter by lazy { NotificationAdapter(context) }
     val documentAdapter by lazy { com.thanu.steady.platform.DocumentAdapter(context) }
     val bootstrap by lazy { com.thanu.steady.platform.BootstrapStore(context) }
+    val alarmCues by lazy { com.thanu.steady.platform.AlarmCueStore(context) }
     val platformSensors by lazy { com.thanu.steady.platform.PlatformSensors(context) }
     val audioSoundscapeEngine by lazy { com.thanu.steady.platform.AudioSoundscapeEngine(context) }
     val clock: java.time.Clock = java.time.Clock.systemUTC()
@@ -40,6 +41,7 @@ class AppContainer(private val context: Context) {
             android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 0).toLong())
     }, preferencesRepository) }
     @Volatile var isForeground = false
+    @Volatile var isPrivateAccessible = false
     val timerRepository by lazy { com.thanu.steady.data.TimerRepository({ database }) {
         com.thanu.steady.data.TimerTime(clock.instant(), android.os.SystemClock.elapsedRealtime(),
             android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 0).toLong())
@@ -61,6 +63,7 @@ class AppContainer(private val context: Context) {
     @Synchronized
     fun deleteLocalData() {
         routineReminders.cancelAll()
+        kotlinx.coroutines.runBlocking { alarmCues.clear() }
         openDatabase?.close()
         openDatabase = null
         openSafetyDatabase?.close()

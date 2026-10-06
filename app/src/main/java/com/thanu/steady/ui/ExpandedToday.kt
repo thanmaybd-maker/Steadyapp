@@ -77,6 +77,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
             }
             "TIMELINE" -> if ("PLAN" in period.profile.modules.split(',')) SectionCard(R.string.timeline_title) {
                 PrimaryAction(R.string.add_task) { editedTask = null; editor = "task" }
+                StudyBlockPlanner(model, state, onSafety)
                 TaskTimeline(period.copy(tasks = visibleTasks),onFocus,onHealth,model.repository.clock)
                 if (visibleTasks.isEmpty()) Text(stringResource(R.string.empty_tasks))
                 visibleTasks.sortedWith(compareBy<PlanItem> { item -> item.timeMinutes?.let { time -> Math.floorMod(time-item.boundary,1440) } ?: 1440 }.thenBy { it.position }).forEach { task ->

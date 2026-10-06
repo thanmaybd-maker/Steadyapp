@@ -4,6 +4,8 @@ Updated 7 October 2026. The earlier ledger declared integration without row-spec
 
 The latest owner direction includes OG cards, water/habit animations and graph interactions in Kinetic/Daybook themes, with theme-aware text colors. Optional Gemini BYOK remains requested; it is not rejected merely because the core is offline.
 
+The [76-row coverage CSV](m10-steady-og-ledger.csv) adds source/symbol, adaptation, dependencies, persistence, route, file scope, checks, status and remaining-blocker fields. [Scheduling evidence](m10-scheduling.md) records the latest 42 passing unit checks and 23 isolated device storage/platform checks. Screen/audio/platform acceptance remains pending; the table below is a conservative acceptance overview, not a claim that existing source is missing.
+
 | ID | Capability | Intended destination | Verification status |
 |---|---|---|---|
 | OG-01 | Create/edit/remove categorized prioritized tasks with duration/time | ui/ExpandedToday.kt;data/ExpandedRepository.kt;data/ExpandedEntities.kt | Pending source/wiring/acceptance audit |

@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var appContainer: AppContainer
     private lateinit var accessModel: com.thanu.steady.ui.AccessViewModel
     private var authenticatedAction: (() -> Unit)? = null
+    private var reminderRoute by androidx.compose.runtime.mutableStateOf<String?>(null)
     private val credential = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) {
         if (it.resultCode == RESULT_OK) { accessModel.authenticated(); authenticatedAction?.invoke() }
         authenticatedAction = null
@@ -30,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        reminderRoute = reminderDestination(intent)
         
         appContainer = (application as SteadyApplication).container
         accessModel = androidx.lifecycle.ViewModelProvider(this, object : androidx.lifecycle.ViewModelProvider.Factory {
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity() {
             var profile by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.thanu.steady.data.ExpandedProfile()) }
             var safetyVisible by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             androidx.compose.runtime.SideEffect {
+                appContainer.isPrivateAccessible = access.canOpenPrivate && appContainer.isForeground
                 if (!access.canOpenPrivate || access.bootstrap.hideRecents || safetyVisible) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
                 else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
             }
@@ -54,7 +57,8 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     if (access.canOpenPrivate) saved.SaveableStateProvider("private_navigation") {
-                        com.thanu.steady.ui.ExpandedNavigation(appContainer, access, ::authenticate, { profile = it }, { safetyVisible = it })
+                        com.thanu.steady.ui.ExpandedNavigation(appContainer, access, ::authenticate, { profile = it }, { safetyVisible = it },
+                            reminderRoute) { reminderRoute = null }
                     } else com.thanu.steady.ui.ExpandedPage {
                         com.thanu.steady.ui.PublicSafetyPanel(access.bootstrap.country)
                         if (access.loading) Text(getString(R.string.loading_access))
@@ -64,6 +68,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+    private fun reminderDestination(value: android.content.Intent): String? {
+        val uri = value.data ?: return null
+        return if(uri.scheme == "steady" && uri.authority == "reminder" && uri.pathSegments.size == 1)
+            uri.lastPathSegment?.takeIf { it in setOf("today", "focus") } else null
+    }
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent); setIntent(intent); reminderRoute = reminderDestination(intent)
     }
     private fun authenticate(onSuccess: (() -> Unit)?) {
         val keyguard = getSystemService(android.app.KeyguardManager::class.java)
@@ -89,10 +101,14 @@ class MainActivity : ComponentActivity() {
             if (intent != null) credential.launch(intent)
         }
     }
-    override fun onStart() { super.onStart(); if (::appContainer.isInitialized) appContainer.isForeground = true }
+    override fun onStart() { super.onStart(); if (::appContainer.isInitialized) {
+        appContainer.isForeground = true
+        appContainer.isPrivateAccessible = ::accessModel.isInitialized && accessModel.state.value.canOpenPrivate
+    } }
     override fun onStop() {
         if (::appContainer.isInitialized) {
             appContainer.isForeground = false
+            appContainer.isPrivateAccessible = false
             appContainer.audioSoundscapeEngine.release()
             appContainer.platformSensors.stopStepTracking()
             appContainer.platformSensors.stopGpsTracking()

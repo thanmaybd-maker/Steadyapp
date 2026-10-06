@@ -7,13 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Process
 import android.provider.Settings
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 
 class UsageInterceptor(private val context: Context) {
-
-    private val _isPermissionGranted = MutableStateFlow(checkPermission())
-    val isPermissionGranted: StateFlow<Boolean> = _isPermissionGranted
 
     fun checkPermission(): Boolean {
         val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
@@ -26,40 +21,29 @@ class UsageInterceptor(private val context: Context) {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
-    fun requestPermission(onRequested: () -> Unit) {
-        if (!checkPermission()) {
-            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            onRequested()
-        }
-    }
+    fun requestPermission(): Boolean = try {
+        context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
+    } catch (_: android.content.ActivityNotFoundException) { false }
+      catch (_: SecurityException) { false }
 
     fun getUsageInsights(startTime: Long, endTime: Long): Map<String, Long> {
-        if (!checkPermission()) return emptyMap()
+        if (!checkPermission()) throw SecurityException("Usage access unavailable")
 
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val usageEvents = usageStatsManager.queryEvents(startTime, endTime) ?: return emptyMap()
-
-        val appDurations = mutableMapOf<String, Long>()
-        val startTimes = mutableMapOf<String, Long>()
+        require(endTime >= startTime && endTime - startTime <= 2 * 86_400_000L)
+        val usageEvents = usageStatsManager.queryEvents((startTime - 86_400_000L).coerceAtLeast(0), endTime)
+            ?: throw IllegalStateException("Usage events unavailable")
+        val events = mutableListOf<com.thanu.steady.domain.UsageTransition>()
 
         val event = UsageEvents.Event()
+        var scanned = 0
         while (usageEvents.hasNextEvent()) {
             usageEvents.getNextEvent(event)
-            when (event.eventType) {
-                UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    startTimes[event.packageName] = event.timeStamp
-                }
-                UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> {
-                    startTimes[event.packageName]?.let { start ->
-                        val duration = event.timeStamp - start
-                        appDurations[event.packageName] = (appDurations[event.packageName] ?: 0L) + duration
-                        startTimes.remove(event.packageName)
-                    }
-                }
-            }
+            check(++scanned <= 100_000)
+            if(event.eventType == UsageEvents.Event.ACTIVITY_RESUMED || event.eventType == UsageEvents.Event.ACTIVITY_PAUSED || event.eventType == UsageEvents.Event.ACTIVITY_STOPPED)
+                event.packageName?.let { events.add(com.thanu.steady.domain.UsageTransition(it, event.timeStamp, event.eventType == UsageEvents.Event.ACTIVITY_RESUMED)) }
         }
-        return appDurations
+        if(!checkPermission()) throw SecurityException("Usage access revoked")
+        return com.thanu.steady.domain.UsageDurationRules.durations(startTime, endTime, events)
     }
 }

@@ -13,4 +13,13 @@ object ReminderRules {
     }
     fun eligible(now: Long, scheduled: Long, mode: String, quiet: Boolean, used: Int, budget: Int): Boolean =
         mode != "PAUSED" && !quiet && budget in 1..5 && used < budget && now in scheduled..scheduled+300_000
+    fun expires(scheduled: Long, day: LocalDate, zone: ZoneId, boundary: Int, quietStart: Int, quietEnd: Int): Long {
+        val local = Instant.ofEpochMilli(scheduled).atZone(zone)
+        val nextQuiet = if(quietStart == quietEnd) Long.MAX_VALUE else {
+            var cutoff = local.toLocalDate().atTime(quietStart / 60, quietStart % 60).atZone(zone)
+            if(cutoff.toInstant().toEpochMilli() <= scheduled) cutoff = cutoff.plusDays(1)
+            cutoff.toInstant().toEpochMilli()
+        }
+        return minOf(scheduled + 300_000, ActivityTotals.dayBounds(day, zone, boundary).end, nextQuiet)
+    }
 }

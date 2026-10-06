@@ -22,7 +22,7 @@ import com.thanu.steady.di.AppContainer
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ExpandedNavigation(container: AppContainer, access: AccessState,
     onAuthentication: ((() -> Unit)?) -> Unit, onTheme: (com.thanu.steady.data.ExpandedProfile) -> Unit,
-    onSafetyVisibility: (Boolean) -> Unit = {}) {
+    onSafetyVisibility: (Boolean) -> Unit = {}, requestedRoute: String? = null, onReminderConsumed: () -> Unit = {}) {
     val model: ExpandedViewModel = viewModel(factory = object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
@@ -50,6 +50,11 @@ import com.thanu.steady.di.AppContainer
         popUpTo(nav.graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true; restoreState = true
     } }
+    LaunchedEffect(profile?.onboarded, requestedRoute) {
+        if(profile?.onboarded == true && requestedRoute in setOf("today", "focus")) {
+            navigate(requireNotNull(requestedRoute)); onReminderConsumed()
+        }
+    }
     val largeText = LocalDensity.current.fontScale > 1.4f
     val wide = LocalConfiguration.current.screenWidthDp >= 600 && !largeText
     var chooseTab by remember { mutableStateOf(false) }
@@ -103,9 +108,9 @@ import com.thanu.steady.di.AppContainer
                 composable("health") { LaunchedEffect(Unit) { model.reload() }; ExpandedHealth(model, state, safety,quickAction) { quickAction = null } }
                 composable("focus") { LaunchedEffect(Unit) { model.reload() }; ExpandedFocus(model, state, safety) }
                 composable("review") { ExpandedReview(model, state, safety) }
-                composable("settings") { ExpandedSettings(model, state, container, access, onAuthentication, safety) }
+                composable("settings") { ExpandedSettings(model, state, container, access, onAuthentication, safety) { navigate("usage_insights") } }
                 composable("usage_insights") {
-                    ExpandedUsageInsights(appDurations = mapOf("com.example.distractingapp" to 1200000L)) { nav.popBackStack() }
+                    ExpandedUsageInsights(model, state, safety) { nav.popBackStack() }
                 }
                 composable("learn_build") { ExpandedLearnBuildModules() }
                 composable("people") { ExpandedPeople() }

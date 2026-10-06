@@ -16,6 +16,7 @@ class AlarmReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val container = (context.applicationContext as SteadyApplication).container
+                if(!container.isPrivateAccessible) return@launch // Legacy timers reconcile when the owner returns.
                 container.timerRepository.complete(id, generation)?.let {
                     container.notificationAdapter.showTimerCompleteNotification(it.id, it.cueFlags)
                 }
@@ -34,6 +35,11 @@ class TimerReconcileReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val container = (context.applicationContext as SteadyApplication).container
+                if(intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_TIME_CHANGED) {
+                    container.alarmCues.invalidateScheduled()
+                    container.routineReminders.cancelAll()
+                }
+                if(!container.isPrivateAccessible) return@launch
                 container.timerRepository.reconcile(interrupt).forEach {
                     container.alarmAdapter.cancelAlarm(it.id)
                     if (it.state == com.thanu.steady.domain.TimerState.RUNNING)

@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.*
 import java.util.UUID
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 data class PeriodSnapshot(val start: LocalDate, val end: LocalDate, val profile: ExpandedProfile,
     val preferences: AppPreferences, val days: List<DaySettings>, val tasks: List<PlanItem>,
@@ -136,6 +139,45 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         val db = provider()
         db.withTransaction { val task = requireNotNull(db.expandedDao().task(id));
             db.expandedDao().save(task.copy(state = if (task.state == "COMPLETED") "PENDING" else "COMPLETED", updated = clock.millis())) }
+    }
+    suspend fun studyBlocks(day: LocalDate): List<StudyBlockProposal> = provider().expandedDao().notesWithPrefix("study-block:%")
+        .map { Json.decodeFromString<StudyBlockProposal>(it.text).also { value -> value.validate(); require(it.id == "study-block:${value.id}") } }
+        .filter { it.day == day.toString() }
+    suspend fun studyBlockSettings(): StudyBlockSettings = provider().expandedDao().note("study-block-settings")
+        ?.let { Json.decodeFromString<StudyBlockSettings>(it.text) } ?: StudyBlockSettings()
+    suspend fun studyBlockSettings(value: StudyBlockSettings) = saveNote(SessionNote("study-block-settings", null, Json.encodeToString(value), clock.millis()))
+    suspend fun saveStudyBlock(value: StudyBlockProposal) {
+        value.validate()
+        val db = provider()
+        db.withTransaction {
+            val dao = db.expandedDao()
+            val old = dao.note("study-block:${value.id}")?.let { Json.decodeFromString<StudyBlockProposal>(it.text).also(StudyBlockProposal::validate) }
+            check(value.revision == (old?.revision ?: 0) && value.adoptedPlanId == old?.adoptedPlanId)
+            old?.adoptedPlanId?.let { id -> dao.task(id)?.let { task ->
+                saveTask(task.copy(day = value.day, title = value.title, timeMinutes = value.minute,
+                    plannedSeconds = value.durationMinutes * 60L, category = value.category, notes = value.primer,
+                    zone = value.zone, boundary = value.boundary))
+            } }
+            dao.save(SessionNote("study-block:${value.id}", null, Json.encodeToString(value.copy(revision = value.revision + 1)), clock.millis()))
+        }
+    }
+    suspend fun adoptStudyBlock(value: StudyBlockProposal): String {
+        value.validate()
+        val db = provider()
+        return db.withTransaction {
+            val dao = db.expandedDao()
+            val stored = dao.note("study-block:${value.id}")?.let { Json.decodeFromString<StudyBlockProposal>(it.text).also(StudyBlockProposal::validate) }
+            stored?.adoptedPlanId?.let { return@withTransaction it }
+            check(value.revision == (stored?.revision ?: 0))
+            val id = value.planId
+            check(dao.task(id) == null)
+            saveTask(PlanItem(id, value.day, value.title, notes = value.primer, category = value.category,
+                plannedSeconds = value.durationMinutes * 60L, timeMinutes = value.minute,
+                created = clock.millis(), updated = clock.millis(), zone = value.zone, boundary = value.boundary))
+            dao.save(SessionNote("study-block:${value.id}", null, Json.encodeToString(value.copy(adoptedPlanId = id,
+                revision = value.revision + 1)), clock.millis()))
+            id
+        }
     }
     suspend fun deleteTask(id: String) {
         val db = provider()

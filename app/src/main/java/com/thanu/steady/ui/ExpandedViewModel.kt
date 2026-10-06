@@ -135,7 +135,9 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
                     } else {
                         _state.update { it.copy(restRemaining = (rest.deadlineElapsed - now.elapsed).coerceAtLeast(0)) }
                         if(!rest.complete && now.elapsed >= rest.deadlineElapsed) action({
-                            activity.completeRest(rest.id,rest.generation)?.let { notifications.showTimerCompleteNotification("rest:${it.id}",it.cueFlags) }
+                            activity.completeRest(rest.id,rest.generation)?.let {
+                                if(alarms.claim("REST", it.id, it.generation) != null) notifications.showTimerCompleteNotification("rest:${it.id}",it.cueFlags)
+                            }
                             alarms.cancelRest(session.id)
                         }, success = R.string.rest_complete)
                     }
@@ -234,12 +236,20 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     }
     fun transition(next: ActivityState) {
         val current = _state.value.period?.active?.firstOrNull() ?: return
-        action({ flushNote(); val fresh = activity.transition(current.id, current.generation, next)
-            alarms.cancel(current.id); alarms.cancelRest(current.id); if (fresh.state == "RUNNING") alarms.schedule(fresh) })
+        action({ flushNote(); alarms.cancel(current.id); alarms.cancelRest(current.id)
+            try { val fresh = activity.transition(current.id, current.generation, next); if(fresh.state == "RUNNING") alarms.schedule(fresh) }
+            catch(error: Exception) {
+                withContext(NonCancellable + Dispatchers.IO) { activity.active()?.let { fresh ->
+                    if(fresh.state == "RUNNING") { alarms.schedule(fresh); activity.rest(fresh.id)?.let { alarms.scheduleRest(it) } }
+                } }
+                throw error
+            }
+        })
     }
     private fun complete(session: ActivitySession) = action({
         activity.complete(session.id, session.generation)?.let {
-            alarms.cancel(it.id); notifications.showTimerCompleteNotification(it.id, it.cueFlags)
+            val cue = alarms.claim("ACTIVITY", it.id, session.generation)
+            alarms.cancel(it.id); if(cue != null) notifications.showTimerCompleteNotification(it.id, it.cueFlags)
             alarms.cancelRest(it.id)
         }
     }, success = R.string.timer_complete)
@@ -277,9 +287,23 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     fun template(value: WorkoutTemplate, after: () -> Unit) = action({ activity.saveTemplate(value) }, after = after)
     fun deleteTemplate(id: String) = action({ activity.deleteTemplate(id) })
     fun effort(id: String, value: Int?) = action({ activity.effort(id,value) })
-    fun rest(sessionId: String, seconds: Int) = action({ val value = activity.startRest(sessionId,seconds); alarms.scheduleRest(value) })
-    suspend fun beginRest(sessionId: String, seconds: Int) { val value = activity.startRest(sessionId,seconds); alarms.scheduleRest(value) }
-    fun cancelRest(sessionId: String) = action({ activity.cancelRest(sessionId); alarms.cancelRest(sessionId) })
+    fun rest(sessionId: String, seconds: Int) = action({ beginRest(sessionId,seconds) })
+    suspend fun beginRest(sessionId: String, seconds: Int) {
+        alarms.cancelRest(sessionId)
+        try { alarms.scheduleRest(activity.startRest(sessionId,seconds)) }
+        catch(error: Exception) {
+            withContext(NonCancellable + Dispatchers.IO) { activity.rest(sessionId)?.let { alarms.scheduleRest(it) } }
+            throw error
+        }
+    }
+    fun cancelRest(sessionId: String) = action({
+        alarms.cancelRest(sessionId)
+        try { activity.cancelRest(sessionId) }
+        catch(error: Exception) {
+            withContext(NonCancellable + Dispatchers.IO) { activity.rest(sessionId)?.let { alarms.scheduleRest(it) } }
+            throw error
+        }
+    })
     fun deleteSet(id: String) = action({ activity.deleteSet(id) })
     suspend fun manualWorkout(kind: String, title: String, actualMinutes: Double, notes: String) = activity.manualWorkout(kind, title, actualMinutes, notes)
     suspend fun correctHistory(id: String, millis: Long, notes: String, effort: Int?) = activity.editHistory(id, millis, notes, effort)

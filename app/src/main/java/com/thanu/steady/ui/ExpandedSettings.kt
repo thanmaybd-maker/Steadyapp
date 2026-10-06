@@ -13,7 +13,7 @@ import com.thanu.steady.R
 import com.thanu.steady.di.AppContainer
 
 @Composable fun ExpandedSettings(model: ExpandedViewModel, state: ExpandedUiState, container: AppContainer,
-    access: AccessState, onAuthentication: ((() -> Unit)?) -> Unit, onSafety: () -> Unit) {
+    access: AccessState, onAuthentication: ((() -> Unit)?) -> Unit, onSafety: () -> Unit, onUsage: () -> Unit) {
     val period = state.period ?: return
     val profile = period.profile
     val context = LocalContext.current
@@ -81,6 +81,7 @@ import com.thanu.steady.di.AppContainer
         }
         SectionCard(R.string.permissions_title) {
             Text(stringResource(R.string.permissions_disclosure))
+            SecondaryAction(R.string.usage_insights_title, onClick = onUsage)
             SecondaryAction(R.string.open_android_permissions) { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
             if (android.os.Build.VERSION.SDK_INT >= 31) SecondaryAction(R.string.open_exact_access) {
                 context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
