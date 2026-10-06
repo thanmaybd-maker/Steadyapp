@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pantry_choices">Pantry ingredients</string>
+    <string name="pantry_custom_notice">Choose items you have, then add quantities or other ingredients below. Review your own food restrictions.</string>
+    <string name="pantry_rice">Rice</string>
+    <string name="pantry_lentils">Lentils</string>
+    <string name="pantry_chickpeas">Chickpeas</string>
+    <string name="pantry_eggs">Eggs</string>
+    <string name="pantry_yogurt">Yogurt</string>
+    <string name="pantry_vegetables">Vegetables</string>
+    <string name="pantry_fruit">Fruit</string>
+    <string name="meal_type_optional">Meal type · optional</string>
+    <string name="meal_breakfast">Breakfast</string>
+    <string name="meal_lunch">Lunch</string>
+    <string name="meal_dinner">Dinner</string>
+    <string name="meal_snack">Snack</string>
+    <string name="meal_context">Your meal context · optional</string>
+    <string name="recipe_context_unavailable">Meal context could not be loaded. Your saved recipe is preserved.</string>
+    <string name="schedule_meal">Schedule this meal</string>
+    <string name="add_food_plan">Add Food plan</string>
+    <string name="meal_plan_notice">Choose a date, time and planned duration. This creates a Food plan. Log an actual meal separately when you eat it.</string>
+</resources>

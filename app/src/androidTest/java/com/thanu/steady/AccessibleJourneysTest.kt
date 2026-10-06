@@ -129,6 +129,41 @@ class AccessibleJourneysTest {
         compose.waitUntil(10000) { model.state.value.period?.profile?.waterQuickMl == "125,375" && !model.state.value.busy }
         runBlocking(Dispatchers.IO) { assertEquals("125,375",repository.profile().waterQuickMl) }
     }
+    @Test fun foodChoicesRetainDraftAndSchedulingCreatesOnlyOneFoodPlanAtDoubleText() {
+        var stage by mutableStateOf("recipe")
+        compose.setContent {
+            SteadyTheme(ExpandedProfile(palette="DAYBOOK",theme="DARK",textScale=2f,reducedMotion=true)) {
+                val state by model.state.collectAsState()
+                if(state.period != null) {
+                    if(stage == "recipe") FoodEditor(model,state,null,{}) { stage="plan" }
+                    else state.period!!.foods.singleOrNull()?.let { recipe -> MealPlanEditor(model,state,recipe,{}) { stage="closed" } }
+                }
+            }
+        }
+        compose.waitUntil(10000) { model.state.value.period != null }
+        button(R.string.pantry_rice).performScrollTo().performClick()
+        compose.onNode(hasText(compose.activity.getString(R.string.preparation_minutes,10)) and hasClickAction()).performScrollTo().performClick()
+        button(R.string.meal_lunch).performScrollTo().performClick()
+        field(R.string.meal_context).performScrollTo().performTextInput("Synthetic context")
+        field(R.string.food_instructions).performScrollTo().performTextInput("Synthetic preparation")
+        button(R.string.save_action).performScrollTo().performClick()
+        compose.waitUntil(10000) { model.state.value.error == R.string.action_failed }
+        field(R.string.meal_context).performScrollTo().assertTextContains("Synthetic context")
+        field(R.string.food_name).performScrollTo().performTextInput("Synthetic lunch")
+        button(R.string.save_action).performScrollTo().performClick()
+        compose.waitUntil(10000) { stage == "plan" && model.state.value.period?.foods?.size == 1 }
+        val recipe = runBlocking(Dispatchers.IO) { db.expandedDao().foods().single() }
+        assertEquals(10,recipe.prepMinutes)
+        assertTrue(recipe.ingredients.contains(label(R.string.pantry_rice)))
+        assertEquals(com.thanu.steady.domain.RecipeContext("LUNCH","Synthetic context"),runBlocking(Dispatchers.IO) { repository.recipeContext(recipe.id) })
+        field(R.string.time_optional).performScrollTo().performTextInput("13:00")
+        button(R.string.add_food_plan).performScrollTo().performClick()
+        compose.waitUntil(10000) { stage == "closed" && model.state.value.period?.tasks?.size == 1 }
+        val plan = runBlocking(Dispatchers.IO) { db.expandedDao().tasks("2026-01-05","2026-01-05").single() }
+        assertEquals("FOOD",plan.category); assertEquals(780,plan.timeMinutes)
+        assertTrue(runBlocking(Dispatchers.IO) { db.expandedDao().meals("2026-01-05","2026-01-05").isEmpty() })
+    }
+
     @Test fun kineticWaterShortcutAndUndoChangeStoredServings() = waterJourney("KINETIC", "LIGHT", 1f)
     @Test fun daybookDarkDoubleTextKeepsWaterAndUndoReachable() = waterJourney("DAYBOOK", "DARK", 2f)
 

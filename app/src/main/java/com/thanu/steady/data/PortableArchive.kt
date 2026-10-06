@@ -112,7 +112,7 @@ object PortableCodec {
         require(a.days.map { it.day }.distinct().size == a.days.size)
         require(a.notes.map { it.id }.distinct().size == a.notes.size)
         a.notes.forEach { require(!it.id.startsWith("draft:") && !it.id.startsWith("rest:") && !it.id.startsWith("delivery:") && it.id.length <= 200); text(it.text); require(it.sessionId == null || it.sessionId in sessionIds)
-            if(it.id.startsWith("ambient:") || it.id.startsWith("study-block")) {
+            if(it.id.startsWith("ambient:") || it.id.startsWith("study-block") || it.id.startsWith("recipe-context:") || it.id.startsWith("meal-adoption:")) {
                 require(it.sessionId == null)
                 StrictJsonStructure.check(it.text)
                 val json = format.parseToJsonElement(it.text)
@@ -130,6 +130,16 @@ object PortableCodec {
                         val block = format.decodeFromString<com.thanu.steady.domain.StudyBlockProposal>(it.text).also { b -> b.validate() }
                         require(it.id == "study-block:${block.id}")
                     }
+                    it.id.startsWith("recipe-context:") -> {
+                        require(it.id.removePrefix("recipe-context:") in foodIds)
+                        validateTypes(json,com.thanu.steady.domain.RecipeContext.serializer().descriptor,true)
+                        format.decodeFromString<com.thanu.steady.domain.RecipeContext>(it.text).validate()
+                    }
+                    it.id.startsWith("meal-adoption:") -> {
+                        validateTypes(json,com.thanu.steady.domain.MealPlanAssociation.serializer().descriptor,true)
+                        val association = format.decodeFromString<com.thanu.steady.domain.MealPlanAssociation>(it.text).also { a -> a.validate() }
+                        require(it.id == "meal-adoption:${association.id}")
+                    }
                     else -> error("Unknown organiser metadata")
                 }
             }
@@ -140,7 +150,7 @@ object PortableCodec {
         }
         a.tasks.forEach { day(it.day); policy(it.zone,it.boundary); text(it.title,500); require(it.title.isNotBlank()); text(it.notes)
             require(it.state in setOf("PENDING","COMPLETED","ARCHIVED") && it.priority in 0..2)
-            require(it.category in setOf("GENERAL","STUDY","BUILD","MOVEMENT","CARE"))
+            require(it.category in setOf("GENERAL","STUDY","BUILD","MOVEMENT","CARE","FOOD"))
             require(it.subjectId == null || it.subjectId in subjectIds)
             require(it.plannedSeconds == null || it.plannedSeconds in 1..86_400)
             require(it.timeMinutes == null || it.timeMinutes in 0..1439) }

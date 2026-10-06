@@ -93,7 +93,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
                             task.plannedSeconds?.let { Text(stringResource(R.string.planned_minutes, it / 60.0)) }
                             PrimaryAction(if (task.state == "COMPLETED") R.string.undo_complete else R.string.complete_task, !state.busy) { model.action({ model.repository.toggleTask(task.id) }) }
                             SecondaryAction(R.string.edit_reschedule) { editedTask = task; editor = "task" }
-                            SecondaryAction(R.string.start_task_focus, !state.busy) {
+                            if(task.category != "FOOD") SecondaryAction(R.string.start_task_focus, !state.busy) {
                                 if (period.active.isNotEmpty()) onFocus() else model.start("FOCUS", if (task.category == "BUILD") "BUILD" else "STUDY", task.title,
                                     task.plannedSeconds ?: 1500, 300, task.subjectId, task.id, onFocus)
                             }
@@ -197,7 +197,8 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
         TextInput(form["notes"].orEmpty(), R.string.note_text, { model.field(key, "notes", it) }, 3)
         TextInput(form["project"].orEmpty(),R.string.project_tag,{ model.field(key,"project",it) })
         TextInput(form["day"].orEmpty(), R.string.logical_date, { model.field(key, "day", it) })
-        ChoiceList(form["category"] ?: "STUDY", listOf("STUDY" to R.string.study_kind, "BUILD" to R.string.build_kind, "MOVEMENT" to R.string.movement_kind, "GENERAL" to R.string.general_kind)) { model.field(key, "category", it) }
+        ChoiceList(form["category"] ?: "STUDY", listOf("STUDY" to R.string.study_kind, "BUILD" to R.string.build_kind, "MOVEMENT" to R.string.movement_kind,
+            "GENERAL" to R.string.general_kind,"CARE" to R.string.care_title,"FOOD" to R.string.food_title)) { model.field(key, "category", it) }
         TextInput(form["minutes"].orEmpty(), R.string.duration_minutes_optional, { model.field(key, "minutes", it) })
         TextInput(form["time"].orEmpty(), R.string.time_optional, { model.field(key, "time", it) })
         TextInput(form["priority"].orEmpty(), R.string.priority_value, { model.field(key, "priority", it) })

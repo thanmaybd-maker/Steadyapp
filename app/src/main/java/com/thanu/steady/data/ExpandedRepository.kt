@@ -125,7 +125,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         UUID.fromString(item.id); LocalDate.parse(item.day); ZoneId.of(item.zone)
         require(item.title.isNotBlank() && item.title.length <= 500 && item.notes.length <= 100_000)
         require(item.boundary in 0..1439 && item.priority in 0..2 && item.state in setOf("PENDING", "COMPLETED", "ARCHIVED"))
-        require(item.category in setOf("STUDY","BUILD","MOVEMENT","GENERAL") && (item.projectId == null || item.projectId.length <= 200))
+        require(item.category in setOf("STUDY","BUILD","MOVEMENT","GENERAL","CARE","FOOD") && (item.projectId == null || item.projectId.length <= 200))
         require(item.plannedSeconds == null || item.plannedSeconds in 1..86_400)
         require(item.timeMinutes == null || item.timeMinutes in 0..1439)
         val db = provider()
@@ -281,9 +281,38 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         require(food.prepMinutes == null || food.prepMinutes in 0..1440)
         provider().expandedDao().save(food.copy(updated = clock.millis()))
     }
+    suspend fun recipeContext(id: String): RecipeContext = provider().expandedDao().note("recipe-context:$id")
+        ?.let { Json.decodeFromString<RecipeContext>(it.text).also(RecipeContext::validate) } ?: RecipeContext()
+    suspend fun saveRecipe(food: FoodIdeaRecord, context: RecipeContext) {
+        context.validate(); UUID.fromString(food.id)
+        val db = provider()
+        db.withTransaction {
+            saveFood(food)
+            db.expandedDao().save(SessionNote("recipe-context:${food.id}",null,Json.encodeToString(context),clock.millis()))
+        }
+    }
+    suspend fun adoptMeal(value: MealPlanProposal): String {
+        value.validate()
+        val db = provider()
+        return db.withTransaction {
+            val dao = db.expandedDao()
+            dao.note("meal-adoption:${value.id}")?.let { note ->
+                val association = Json.decodeFromString<MealPlanAssociation>(note.text).also(MealPlanAssociation::validate)
+                check(association.recipeId == value.recipeId)
+                return@withTransaction association.planId
+            }
+            check(dao.food(value.recipeId) != null)
+            check(dao.task(value.planId) == null)
+            saveTask(PlanItem(value.planId,value.day,value.title,notes=value.notes,category="FOOD",timeMinutes=value.minute,
+                plannedSeconds=value.minutes * 60L,zone=value.zone,boundary=value.boundary,created=clock.millis(),updated=clock.millis()))
+            dao.save(SessionNote("meal-adoption:${value.id}",null,
+                Json.encodeToString(MealPlanAssociation(value.id,value.recipeId,value.planId)),clock.millis()))
+            value.planId
+        }
+    }
     suspend fun deleteFood(id: String) {
         val db = provider()
-        db.withTransaction { db.expandedDao().detachFood(id); db.expandedDao().deleteFood(id) }
+        db.withTransaction { db.expandedDao().detachFood(id); db.expandedDao().deleteNote("recipe-context:$id"); db.expandedDao().deleteFood(id) }
     }
     suspend fun saveMeal(log: MealLog) { require(log.title.isNotBlank()); provider().expandedDao().save(log) }
     suspend fun deleteMeal(id: String) = provider().expandedDao().deleteMeal(id)

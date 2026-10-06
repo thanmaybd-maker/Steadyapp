@@ -10,6 +10,9 @@ import com.thanu.steady.R
 import com.thanu.steady.data.*
 import com.thanu.steady.domain.ActivityState
 import com.thanu.steady.domain.IntervalProgram
+import com.thanu.steady.domain.RecipeContext
+import com.thanu.steady.domain.PantryRules
+import kotlinx.coroutines.*
 import java.time.*
 
 val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.string.running_mode,
@@ -149,6 +152,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
             if (foods.isEmpty()) Text(stringResource(R.string.food_empty))
             foods.forEach { recipe ->
                 Text(recipe.title, style = MaterialTheme.typography.titleMedium)
+                RecipeContextSummary(model,recipe)
                 Text(recipe.ingredients); Text(recipe.instructions)
                 recipe.prepMinutes?.let { Text(stringResource(R.string.preparation_minutes, it)) }
                 Text(recipe.budget)
@@ -156,6 +160,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
                     model.action({ model.repository.saveFood(recipe.copy(favorite = !recipe.favorite)) })
                 }
                 SecondaryAction(R.string.edit_action) { food = recipe; editor = "food" }
+                SecondaryAction(R.string.schedule_meal) { food = recipe; editor = "meal_plan" }
                 SecondaryAction(R.string.log_meal, !state.busy) { model.action({ model.repository.saveMeal(MealLog(model.repository.newId(), period.end.toString(), recipe.title,
                     foodId = recipe.id, at = model.repository.clock.millis(), zone = period.preferences.zoneId, boundary = period.preferences.boundaryMinutes)) }) }
                 SecondaryAction(R.string.delete_action, !state.busy) { model.action({ model.repository.deleteFood(recipe.id) }) }
@@ -183,6 +188,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
         editor == "water" -> WaterEditor(model, state, water, onSafety) { editor = null }
         editor == "sleep" -> SleepEditor(model, state, sleep, onSafety) { editor = null }
         editor == "food" -> FoodEditor(model, state, food, onSafety) { editor = null }
+        editor == "meal_plan" && food != null -> MealPlanEditor(model,state,food!!,onSafety) { editor = null }
         editor == "workout" || editor == "manual_workout" -> WorkoutEditor(model, state, editor == "manual_workout", onSafety) { editor = null }
         editor == "set" && active != null -> SetEditor(model, state, active.id, onSafety, selectedSet, sets.size) { editor = null }
         editor == "template" -> TemplateEditor(model,state,selectedTemplate,onSafety) { editor = null }
@@ -232,18 +238,56 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
 
 @Composable fun FoodEditor(model: ExpandedViewModel, state: ExpandedUiState, original: FoodIdeaRecord?, onSafety: () -> Unit, onClose: () -> Unit) {
     val key = "food:${original?.id ?: "new"}"
-    DraftEditor(model, state, key, R.string.food_editor, mapOf("title" to original?.title.orEmpty(), "ingredients" to original?.ingredients.orEmpty(),
+    val newId = remember(key) { original?.id ?: model.repository.newId() }
+    var context by remember(original?.id) { mutableStateOf<RecipeContext?>(if(original == null) RecipeContext() else null) }
+    var failed by remember { mutableStateOf(false) }
+    var retry by remember { mutableStateOf(0) }
+    LaunchedEffect(original?.id,retry) {
+        if(original != null) try { context = withContext(Dispatchers.IO) { model.repository.recipeContext(original.id) }; failed=false }
+        catch(cancelled: CancellationException) { throw cancelled }
+        catch(_: Exception) { failed=true }
+    }
+    val initialContext = context
+    if(initialContext == null) {
+        androidx.compose.ui.window.Dialog(onDismissRequest=onClose,properties=androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
+            DialogSurface { ExpandedPage {
+                SecondaryAction(R.string.safety_action,onClick=onSafety); SecondaryAction(R.string.close_keep_draft,onClick=onClose)
+                Text(stringResource(if(failed) R.string.recipe_context_unavailable else R.string.loading_records))
+                if(failed) SecondaryAction(R.string.retry) { retry++ }
+            } }
+        }
+        return
+    }
+    DraftEditor(model, state, key, R.string.food_editor, mapOf("id" to newId,"title" to original?.title.orEmpty(), "ingredients" to original?.ingredients.orEmpty(),
         "steps" to original?.instructions.orEmpty(), "prep" to (original?.prepMinutes?.toString() ?: ""), "budget" to original?.budget.orEmpty(),
-        "tags" to original?.tags.orEmpty(), "vegetarian" to (original?.vegetarian?.toString() ?: "true")), onSafety, onClose) { values, close ->
+        "tags" to original?.tags.orEmpty(), "vegetarian" to (original?.vegetarian?.toString() ?: "true"),
+        "mealType" to initialContext.mealType.orEmpty(),"context" to initialContext.context), onSafety, onClose) { values, close ->
+        Text(stringResource(R.string.pantry_choices))
+        listOf(R.string.pantry_rice,R.string.pantry_lentils,R.string.pantry_chickpeas,R.string.pantry_eggs,
+            R.string.pantry_yogurt,R.string.pantry_vegetables,R.string.pantry_fruit).forEach { label ->
+            val item = stringResource(label)
+            ToggleRow(label,PantryRules.selected(values["ingredients"].orEmpty(),item)) {
+                model.field(key,"ingredients",PantryRules.toggle(values["ingredients"].orEmpty(),item,it))
+            }
+        }
+        Text(stringResource(R.string.pantry_custom_notice))
+        listOf(5,10,15,25).forEach { minutes ->
+            OutlinedButton(onClick={ model.field(key,"prep",minutes.toString()) },modifier=Modifier.fillMaxWidth().heightIn(min=56.dp)) {
+                Text(stringResource(R.string.preparation_minutes,minutes))
+            }
+        }
+        ChoiceList(values["mealType"].orEmpty(),mealTypeChoices) { model.field(key,"mealType",it) }
+        TextInput(values["context"].orEmpty(),R.string.meal_context,{ model.field(key,"context",it) },2)
         listOf("title" to R.string.food_name, "ingredients" to R.string.food_ingredients, "steps" to R.string.food_instructions,
             "prep" to R.string.preparation_minutes_field, "budget" to R.string.budget_tag, "tags" to R.string.food_tags).forEach { (field, label) ->
             TextInput(values[field].orEmpty(), label, { model.field(key, field, it) }, if (field in setOf("ingredients", "steps")) 3 else 1)
         }
         ToggleRow(R.string.vegetarian_food, values["vegetarian"] == "true") { model.field(key, "vegetarian", it.toString()) }
         PrimaryAction(R.string.save_action, !state.busy) { model.action({
-            model.repository.saveFood(FoodIdeaRecord(original?.id ?: model.repository.newId(), values["title"].orEmpty(), values["ingredients"].orEmpty(),
+            model.repository.saveRecipe(FoodIdeaRecord(original?.id ?: values["id"] ?: newId, values["title"].orEmpty(), values["ingredients"].orEmpty(),
                 values["steps"].orEmpty(), values["prep"]?.takeIf(String::isNotBlank)?.toInt(), values["budget"].orEmpty(), values["tags"].orEmpty(),
-                values["vegetarian"] == "true", original?.favorite ?: false, original?.provenance ?: "USER", original?.reviewedDay, model.repository.clock.millis()))
+                values["vegetarian"] == "true", original?.favorite ?: false, original?.provenance ?: "USER", original?.reviewedDay, model.repository.clock.millis()),
+                RecipeContext(values["mealType"]?.takeIf(String::isNotBlank),values["context"].orEmpty()))
         }, after = close) }
     }
 }
