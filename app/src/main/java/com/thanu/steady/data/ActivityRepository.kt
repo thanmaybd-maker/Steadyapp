@@ -136,7 +136,7 @@ class ActivityRepository(private val provider: () -> SteadyDatabase, val time: (
     }
     suspend fun sets(id: String) = provider().expandedDao().sets(id)
     suspend fun manualWorkout(kind: String, title: String, actualMinutes: Double, notes: String) {
-        require(kind in setOf("WALK", "RUN", "CYCLE", "STRENGTH", "INTERVALS", "MOBILITY", "CUSTOM"))
+        require(kind in setOf("WALKING", "RUNNING", "CYCLING", "STRENGTH", "INTERVALS", "MOBILITY", "CUSTOM"))
         require(actualMinutes.isFinite() && actualMinutes > 0 && actualMinutes <= 1440)
         require(title.isNotBlank() && title.length <= 500 && notes.length <= 100_000)
         val now = time(); val p = preferences.get(); val actual = (actualMinutes * 60_000).toLong()

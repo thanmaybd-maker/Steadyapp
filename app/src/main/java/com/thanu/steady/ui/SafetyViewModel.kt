@@ -2,114 +2,85 @@ package com.thanu.steady.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.thanu.steady.data.SteadyDatabase
-import com.thanu.steady.data.SafetyPlanEntity
-import com.thanu.steady.data.SupportContactEntity
-import com.thanu.steady.domain.SafetyPlan
-import com.thanu.steady.domain.SupportContact
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import java.time.Instant
+import com.thanu.steady.R
+import com.thanu.steady.data.*
+import com.thanu.steady.domain.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import java.time.Clock
+import java.util.UUID
 
-data class SafetyUiState(
-    val isLoading: Boolean = true,
-    val plan: SafetyPlan = SafetyPlan(),
-    val isEditing: Boolean = false,
-    val isSaved: Boolean = false,
-    val errorMessage: String? = null
-)
+data class SafetyUiState(val isLoading: Boolean = true, val plan: SafetyPlan = SafetyPlan(),
+    val isEditing: Boolean = false, val isSaved: Boolean = false, val busy: Boolean = false, val errorMessage: Int? = null)
 
-class SafetyViewModel(private val repository: com.thanu.steady.data.PrivateSafetyRepository,
-    private val clock: java.time.Clock = java.time.Clock.systemUTC()) : ViewModel() {
+class SafetyViewModel(private val repository: PrivateSafetyRepository, private val clock: Clock = Clock.systemUTC()) : ViewModel() {
     private val _uiState = MutableStateFlow(SafetyUiState())
-    val uiState: StateFlow<SafetyUiState> = _uiState.asStateFlow()
-
-    init {
-        loadPlan()
-    }
-
-    private fun loadPlan() {
+    val uiState = _uiState.asStateFlow()
+    private var saved = SafetyPlan()
+    init { loadPlan() }
+    fun loadPlan() {
+        if (_uiState.value.busy || _uiState.value.isEditing) return
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true,errorMessage = null) }
             try {
-                val (planEntity, storedContacts) = repository.load()
-                val contacts = storedContacts.map {
-                    SupportContact(it.id, it.role, it.displayName, it.phone, it.note, it.sortOrder)
-                }
-
-                if (planEntity != null) {
-                    val plan = SafetyPlan(
-                        id = planEntity.id,
-                        warningSigns = planEntity.warningSigns,
-                        copingSteps = planEntity.copingSteps,
-                        safePeoplePlaces = planEntity.safePeoplePlaces,
-                        environmentSteps = planEntity.environmentSteps,
-                        clinicName = planEntity.clinicName,
-                        clinicPhone = planEntity.clinicPhone,
-                        followUpAt = planEntity.followUpAt,
-                        reviewedByUserAt = planEntity.reviewedByUserAt,
-                        clinicianReviewStatus = planEntity.clinicianReviewStatus,
-                        updatedAt = planEntity.updatedAt,
-                        contacts = contacts
-                    )
-                    _uiState.update { it.copy(isLoading = false, plan = plan) }
-                } else {
-                    _uiState.update { it.copy(isLoading = false, plan = SafetyPlan()) }
-                }
-            } catch (e: Exception) {
-                // Return an empty plan on failure rather than crashing or blocking public numbers
-                _uiState.update { it.copy(isLoading = false, errorMessage = "Failed to open encrypted plan") }
-            }
+                val (p,contacts) = withContext(Dispatchers.IO) { repository.load() }
+                saved = if (p == null) SafetyPlan() else SafetyPlan(p.id,p.warningSigns,p.copingSteps,p.safePeoplePlaces,p.environmentSteps,
+                    p.clinicName,p.clinicPhone,p.followUpAt,p.reviewedByUserAt,p.clinicianReviewStatus,p.updatedAt,
+                    contacts.map { SupportContact(it.id,it.role,it.displayName,it.phone,it.note,it.sortOrder) })
+                _uiState.update { it.copy(isLoading = false,plan = saved) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { _uiState.update { it.copy(isLoading = false,errorMessage = R.string.private_plan_load_failed) } }
         }
     }
-
-    fun updatePlan(field: String, value: String) {
-        _uiState.update { state ->
-            val p = state.plan
-            val updated = when (field) {
-                "warningSigns" -> p.copy(warningSigns = value)
-                "copingSteps" -> p.copy(copingSteps = value)
-                "safePeoplePlaces" -> p.copy(safePeoplePlaces = value)
-                "environmentSteps" -> p.copy(environmentSteps = value)
-                "clinicName" -> p.copy(clinicName = value)
-                "clinicPhone" -> p.copy(clinicPhone = value)
-                else -> p
-            }
-            state.copy(plan = updated, isSaved = false)
+    fun updatePlan(field: String,value: String) {
+        if (_uiState.value.busy || value.length > 100_000) return
+        _uiState.update { s -> val p = s.plan
+            s.copy(isSaved = false,plan = when(field) {
+                "warningSigns" -> p.copy(warningSigns=value); "copingSteps" -> p.copy(copingSteps=value)
+                "safePeoplePlaces" -> p.copy(safePeoplePlaces=value); "environmentSteps" -> p.copy(environmentSteps=value)
+                "clinicName" -> p.copy(clinicName=value); "clinicPhone" -> p.copy(clinicPhone=value)
+                "followUpAt" -> p.copy(followUpAt=value.takeIf(String::isNotBlank)); else -> p
+            })
         }
     }
-
     fun toggleEdit() {
-        _uiState.update { it.copy(isEditing = !it.isEditing) }
+        if (_uiState.value.busy) return
+        _uiState.update { it.copy(isEditing = !it.isEditing,isSaved = false) }
     }
-
+    fun addContact() {
+        if (_uiState.value.busy || _uiState.value.plan.contacts.size >= 100) return
+        _uiState.update { s -> s.copy(plan=s.plan.copy(contacts=s.plan.contacts + SupportContact(UUID.randomUUID().toString(),"other","","",null,s.plan.contacts.size)),isSaved=false) }
+    }
+    fun contact(id: String,field: String,value: String) {
+        if (_uiState.value.busy || value.length > 10_000) return
+        _uiState.update { s -> s.copy(isSaved=false,plan=s.plan.copy(contacts=s.plan.contacts.map {
+            if(it.id != id) it else when(field) {
+                "name" -> it.copy(displayName=value); "phone" -> it.copy(phone=value); "role" -> it.copy(role=value)
+                "note" -> it.copy(note=value.takeIf(String::isNotBlank)); else -> it
+            }
+        })) }
+    }
+    fun removeContact(id: String) {
+        if (!_uiState.value.busy) _uiState.update { s -> s.copy(plan=s.plan.copy(contacts=s.plan.contacts.filterNot { it.id == id }),isSaved=false) }
+    }
+    fun reviewed() { _uiState.update { it.copy(plan=it.plan.copy(reviewedByUserAt=clock.instant()),isSaved=false) } }
     fun savePlan() {
+        if (_uiState.value.busy) return
+        val p = _uiState.value.plan
+        _uiState.update { it.copy(busy=true,errorMessage=null) }
         viewModelScope.launch {
             try {
-                val p = _uiState.value.plan
-                val entity = SafetyPlanEntity(
-                    id = p.id,
-                    warningSigns = p.warningSigns,
-                    copingSteps = p.copingSteps,
-                    safePeoplePlaces = p.safePeoplePlaces,
-                    environmentSteps = p.environmentSteps,
-                    clinicName = p.clinicName,
-                    clinicPhone = p.clinicPhone,
-                    followUpAt = p.followUpAt,
-                    reviewedByUserAt = p.reviewedByUserAt,
-                    clinicianReviewStatus = p.clinicianReviewStatus,
-                    updatedAt = clock.instant()
-                )
-                val contacts = p.contacts.map {
-                    SupportContactEntity(it.id, p.id, it.role, it.displayName, it.phone, it.note, it.sortOrder)
+                withContext(Dispatchers.IO) {
+                    val entity = SafetyPlanEntity(p.id,p.warningSigns,p.copingSteps,p.safePeoplePlaces,p.environmentSteps,p.clinicName,
+                        p.clinicPhone,p.followUpAt,p.reviewedByUserAt,p.clinicianReviewStatus,clock.instant())
+                    repository.save(entity,p.contacts.map { SupportContactEntity(it.id,p.id,it.role,it.displayName,it.phone,it.note,it.sortOrder) })
                 }
-                repository.save(entity, contacts)
-                _uiState.update { it.copy(isSaved = true, isEditing = false, errorMessage = null) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(errorMessage = "The private plan could not be saved. Your draft is preserved.") }
-            }
+                saved=p
+                _uiState.update { it.copy(isSaved=true,isEditing=false) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { _uiState.update { it.copy(errorMessage=R.string.private_plan_save_failed) } }
+            finally { _uiState.update { it.copy(busy=false) } }
         }
     }
 }
+

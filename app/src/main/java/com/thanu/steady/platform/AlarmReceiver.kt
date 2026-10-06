@@ -39,6 +39,10 @@ class TimerReconcileReceiver : BroadcastReceiver() {
                     if (it.state == com.thanu.steady.domain.TimerState.RUNNING)
                         it.targetElapsedTime?.let { deadline -> container.alarmAdapter.scheduleExactAlarm(deadline, it.id, it.generation) }
                 }
+                container.activityRepository.reconcile().forEach {
+                    container.activityAlarms.cancel(it.id)
+                    if (it.state == "RUNNING") container.activityAlarms.schedule(it)
+                }
             } catch (_: Exception) { /* Public help remains independent of this receiver. */ }
             finally { pending.finish() }
         }

@@ -15,8 +15,9 @@ import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-fun focusMillis(period: PeriodSnapshot): Long {
-    val ids = period.sessions.filter { it.type == "FOCUS" && it.state != "DISCARDED" }.map { it.id }.toSet()
+fun focusMillis(period: PeriodSnapshot): Long = activityMillis(period,"FOCUS")
+fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null): Long {
+    val ids = period.sessions.filter { it.type == type && it.state != "DISCARDED" && (subject == null || it.subjectId == subject) }.map { it.id }.toSet()
     val pieces = period.segments.filter { it.sessionId in ids && it.activeMillis > 0 }.mapNotNull { segment ->
         val end = segment.endWall ?: return@mapNotNull null
         val zone = ZoneId.of(segment.zone)
@@ -70,7 +71,7 @@ fun focusMillis(period: PeriodSnapshot): Long {
                 MetricRing(R.string.habits_metric, done.toDouble(), eligible.size.takeIf { it > 0 }?.toDouble(),
                     if (eligible.isEmpty()) stringResource(R.string.no_habits_due) else stringResource(R.string.habits_count, done, eligible.size)) { editor = "habit" }
             }
-            "TIMELINE" -> SectionCard(R.string.timeline_title) {
+            "TIMELINE" -> if ("PLAN" in period.profile.modules.split(',')) SectionCard(R.string.timeline_title) {
                 PrimaryAction(R.string.add_task) { editedTask = null; editor = "task" }
                 if (visibleTasks.isEmpty()) Text(stringResource(R.string.empty_tasks))
                 visibleTasks.sortedWith(compareBy<PlanItem> { it.timeMinutes ?: 1440 }.thenBy { it.position }).forEach { task ->
@@ -89,7 +90,7 @@ fun focusMillis(period: PeriodSnapshot): Long {
                 }
                 undoneTask?.let { task -> SecondaryAction(R.string.undo_delete, !state.busy) { model.action({ model.repository.saveTask(task) }, after = { undoneTask = null }) } }
             }
-            "HABITS" -> if (mode != "PAUSED" || optionalShown) SectionCard(R.string.habits_title) {
+            "HABITS" -> if ("HABITS" in period.profile.modules.split(',') && (mode != "PAUSED" || optionalShown)) SectionCard(R.string.habits_title) {
                 PrimaryAction(R.string.add_habit) { editedHabit = null; editor = "habit" }
                 if (occurrences.isEmpty()) Text(stringResource(R.string.empty_habits))
                 occurrences.forEach { occurrence -> versions[occurrence.versionId]?.let { version ->

@@ -1,143 +1,69 @@
 package com.thanu.steady.ui
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
-import com.thanu.steady.domain.PublicHelp
+import androidx.compose.ui.res.stringResource
+import com.thanu.steady.R
 import com.thanu.steady.platform.DialerAdapter
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SafetyScreen(viewModel: SafetyViewModel) {
+@Composable fun SafetyScreen(viewModel: SafetyViewModel,country: String = "IN") {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val dialer = remember { DialerAdapter(context) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Safety") },
-                actions = {
-                    Button(onClick = { viewModel.toggleEdit() }, modifier = Modifier.padding(end = 8.dp)) {
-                        Text(if (state.isEditing) "Cancel" else "Edit Private Plan")
-                    }
+    var failedDial by remember { mutableStateOf(false) }
+    ExpandedPage {
+        PublicSafetyPanel(country)
+        SectionCard(R.string.open_private_plan) {
+            Text(stringResource(R.string.private_safety_device_only))
+            state.errorMessage?.let { Text(stringResource(it),color=MaterialTheme.colorScheme.error) }
+            if (state.isLoading) CircularProgressIndicator()
+            else {
+                if (state.errorMessage == R.string.private_plan_load_failed) SecondaryAction(R.string.retry,onClick=viewModel::loadPlan)
+                else {
+                    SecondaryAction(if(state.isEditing) R.string.close_keep_draft else R.string.edit_action,!state.busy,onClick=viewModel::toggleEdit)
                     if (state.isEditing) {
-                        Button(onClick = { viewModel.savePlan() }, modifier = Modifier.padding(end = 8.dp)) {
-                            Text("Save")
+                        listOf("warningSigns" to (R.string.warning_signs to state.plan.warningSigns),
+                            "copingSteps" to (R.string.coping_steps to state.plan.copingSteps),
+                            "safePeoplePlaces" to (R.string.safe_people_places to state.plan.safePeoplePlaces),
+                            "environmentSteps" to (R.string.environment_steps to state.plan.environmentSteps),
+                            "clinicName" to (R.string.clinic_name to state.plan.clinicName),
+                            "clinicPhone" to (R.string.clinic_phone to state.plan.clinicPhone),
+                            "followUpAt" to (R.string.follow_up_optional to state.plan.followUpAt.orEmpty())).forEach { (key,pair) ->
+                            TextInput(pair.second,pair.first,{ viewModel.updatePlan(key,it) },if(key.endsWith("Steps") || key == "warningSigns") 3 else 1)
+                        }
+                    } else {
+                        listOf(R.string.warning_signs to state.plan.warningSigns,R.string.coping_steps to state.plan.copingSteps,
+                            R.string.safe_people_places to state.plan.safePeoplePlaces,R.string.environment_steps to state.plan.environmentSteps,
+                            R.string.clinic_name to state.plan.clinicName,R.string.clinic_phone to state.plan.clinicPhone).forEach { (label,value) ->
+                            Text(stringResource(label),style=MaterialTheme.typography.titleMedium)
+                            Text(value.ifBlank { stringResource(R.string.none_recorded) })
+                        }
+                        if (state.plan.clinicPhone.isNotBlank()) SecondaryAction(R.string.open_clinic_dialer) { failedDial=!DialerAdapter(context).openDialer(state.plan.clinicPhone) }
+                    }
+                    Text(stringResource(R.string.private_contacts),style=MaterialTheme.typography.titleLarge)
+                    if(state.isEditing) SecondaryAction(R.string.add_private_contact,!state.busy,onClick=viewModel::addContact)
+                    state.plan.contacts.forEach { contact ->
+                        if(state.isEditing) {
+                            TextInput(contact.displayName,R.string.contact_name,{ viewModel.contact(contact.id,"name",it) })
+                            TextInput(contact.phone,R.string.contact_phone,{ viewModel.contact(contact.id,"phone",it) })
+                            ChoiceList(contact.role,listOf("first" to R.string.contact_first,"backup" to R.string.contact_backup,"clinic" to R.string.contact_clinic,"other" to R.string.contact_other)) { viewModel.contact(contact.id,"role",it) }
+                            TextInput(contact.note.orEmpty(),R.string.note_text,{ viewModel.contact(contact.id,"note",it) })
+                            SecondaryAction(R.string.delete_action,!state.busy) { viewModel.removeContact(contact.id) }
+                        } else {
+                            Text(contact.displayName); Text(contact.phone); contact.note?.let { Text(it) }
+                            SecondaryAction(R.string.open_contact_dialer) { failedDial=!DialerAdapter(context).openDialer(contact.phone) }
                         }
                     }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Public Help Surface
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Public Help",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Text(
-                        "Verified: ${PublicHelp.verificationDate}",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    PublicHelp.numbers.forEach { (name, number) ->
-                        Button(
-                            onClick = { dialer.openDialer(number) },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics { contentDescription = "Call $name" },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text("Call $name: $number")
-                        }
+                    if (failedDial) Text(stringResource(R.string.dialer_unavailable),color=MaterialTheme.colorScheme.error)
+                    if(state.isEditing) {
+                        SecondaryAction(R.string.mark_reviewed,!state.busy,onClick=viewModel::reviewed)
+                        PrimaryAction(R.string.save_action,!state.busy,onClick=viewModel::savePlan)
                     }
-                }
-            }
-
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-            if (state.errorMessage != null) {
-                Text(text = state.errorMessage!!, color = MaterialTheme.colorScheme.error)
-            }
-
-            if (state.isLoading) {
-                CircularProgressIndicator()
-            } else {
-                Text("Personal Plan", style = MaterialTheme.typography.titleLarge)
-
-                if (state.isEditing) {
-                    OutlinedTextField(
-                        value = state.plan.warningSigns,
-                        onValueChange = { viewModel.updatePlan("warningSigns", it) },
-                        label = { Text("Warning Signs") },
-                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Edit Warning Signs" },
-                        minLines = 3
-                    )
-                    OutlinedTextField(
-                        value = state.plan.copingSteps,
-                        onValueChange = { viewModel.updatePlan("copingSteps", it) },
-                        label = { Text("Coping Steps") },
-                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Edit Coping Steps" },
-                        minLines = 3
-                    )
-                    OutlinedTextField(
-                        value = state.plan.safePeoplePlaces,
-                        onValueChange = { viewModel.updatePlan("safePeoplePlaces", it) },
-                        label = { Text("Safe People & Places") },
-                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Edit Safe People & Places" },
-                        minLines = 3
-                    )
-                    OutlinedTextField(
-                        value = state.plan.environmentSteps,
-                        onValueChange = { viewModel.updatePlan("environmentSteps", it) },
-                        label = { Text("Environment Steps") },
-                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Edit Environment Steps" },
-                        minLines = 3
-                    )
-                    OutlinedTextField(
-                        value = state.plan.clinicName,
-                        onValueChange = { viewModel.updatePlan("clinicName", it) },
-                        label = { Text("Clinic Name") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = state.plan.clinicPhone,
-                        onValueChange = { viewModel.updatePlan("clinicPhone", it) },
-                        label = { Text("Clinic Phone") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    Text("Warning Signs:\n${state.plan.warningSigns.ifEmpty { "None recorded" }}")
-                    Text("Coping Steps:\n${state.plan.copingSteps.ifEmpty { "None recorded" }}")
-                    Text("Safe People/Places:\n${state.plan.safePeoplePlaces.ifEmpty { "None recorded" }}")
-                    Text("Environment Steps:\n${state.plan.environmentSteps.ifEmpty { "None recorded" }}")
-                    Text("Clinic: ${state.plan.clinicName.ifEmpty { "N/A" }} (${state.plan.clinicPhone.ifEmpty { "N/A" }})")
-                    
-                    if (state.plan.clinicPhone.isNotEmpty()) {
-                        Button(onClick = { dialer.openDialer(state.plan.clinicPhone) }) {
-                            Text("Call Clinic")
-                        }
-                    }
+                    if(state.busy) Text(stringResource(R.string.saving))
+                    if(state.isSaved) Text(stringResource(R.string.saved))
                 }
             }
         }
     }
 }
+

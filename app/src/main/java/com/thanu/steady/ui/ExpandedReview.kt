@@ -24,7 +24,7 @@ import java.time.LocalDate
                 model.reload(if (it == "MONTH") end.withDayOfMonth(1) else end.minusDays(6), end)
             }
             TextInput(endText, R.string.period_end_date, { endText = it })
-            PrimaryAction(R.string.show_period) { model.action({ val end = LocalDate.parse(endText) }, success = null,
+            PrimaryAction(R.string.show_period) { model.action({ LocalDate.parse(endText) }, success = null,
                 after = { select(LocalDate.parse(endText)) }) }
             SecondaryAction(R.string.previous_period) { select(if (mode == "MONTH") period.end.minusMonths(1) else period.end.minusWeeks(1)) }
             SecondaryAction(R.string.next_period) { select(if (mode == "MONTH") period.end.plusMonths(1) else period.end.plusWeeks(1)) }
@@ -37,7 +37,7 @@ import java.time.LocalDate
             val focus = period.sessions.filter { it.type == "FOCUS" && it.state != "DISCARDED" && it.activeMillis > 0 }
             Text(stringResource(R.string.focus_session_count, focus.size))
             period.subjects.forEach { subject ->
-                val seconds = focus.filter { it.subjectId == subject.id }.sumOf { it.activeMillis } / 1000
+                val seconds = activityMillis(period,"FOCUS",subject.id) / 1000
                 if (seconds > 0) Text(stringResource(R.string.subject_duration, subject.title, seconds))
             }
             Text(stringResource(R.string.completed_task_count, period.tasks.count { it.state == "COMPLETED" }))
@@ -56,7 +56,9 @@ import java.time.LocalDate
                     if (version != null && (habit.archivedDay == null || date.toString() < habit.archivedDay)) {
                         val due = HabitRules.scheduled(date, LocalDate.parse(version.anchorDay), version.weekdays, version.everyDays)
                         val occurrence = period.occurrences.firstOrNull { it.habitId == habit.id && it.day == date.toString() }
-                        val status = if (!due) "NOT_DUE" else occurrence?.state ?: "MISSING"
+                        val past = state.logicalToday?.let { date < it } ?: false
+                        val status = if (!due) "NOT_DUE" else if (occurrence == null) { if(past) "MISSING" else "PENDING" }
+                            else if (occurrence.state == "PENDING" && past) "MISSING" else occurrence.state
                         Text(stringResource(R.string.habit_history_row, date.toString(), version.title, stringResource(stateLabel(status))))
                     }
                 }

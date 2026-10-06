@@ -15,7 +15,8 @@ import kotlinx.serialization.json.Json
 
 data class ExpandedUiState(val period: PeriodSnapshot? = null, val loading: Boolean = true,
     val busy: Boolean = false, val message: Int? = null, val error: Int? = null,
-    val activeMillis: Long = 0, val scratchpad: String = "", val noteStatus: Int = R.string.saved)
+    val activeMillis: Long = 0, val scratchpad: String = "", val noteStatus: Int = R.string.saved,
+    val logicalToday: LocalDate? = null)
 
 class ExpandedViewModel(val repository: ExpandedRepository, private val activity: ActivityRepository,
     private val preferences: PreferencesRepository, private val alarms: ActivityAlarmAdapter,
@@ -92,6 +93,7 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
                 val range = withContext(Dispatchers.IO) {
                     activity.reconcile().forEach { if (it.state == "RUNNING") alarms.schedule(it) else alarms.cancel(it.id) }
                     val today = repository.logicalDay()
+                    _state.update { it.copy(logicalToday = today) }
                     repository.prepareDay(today)
                     (start ?: today) to (end ?: start ?: today)
                 }

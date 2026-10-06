@@ -7,6 +7,8 @@ import com.thanu.steady.R
 import com.thanu.steady.data.RecoveryCodec
 import com.thanu.steady.data.RecoveryRepository
 import com.thanu.steady.data.RecoverySnapshot
+import com.thanu.steady.data.PortableCodec
+import com.thanu.steady.platform.ActivityAlarmAdapter
 import com.thanu.steady.domain.BackupService
 import com.thanu.steady.domain.ExportPolicy
 import com.thanu.steady.domain.LogicalDayPolicy
@@ -29,6 +31,10 @@ data class SettingsUiState(
     val includeEvidence: Boolean = false,
     val includeIndicators: Boolean = false,
     val exportDate: String = "",
+    val exportEnd: String = "",
+    val categories: Set<String> = setOf("TASKS","HABITS","FOCUS"),
+    val includeRoutes: Boolean = false,
+    val backupCounts: List<Int>? = null,
     val markdownPreview: String? = null,
     val backupReady: Boolean = false,
     val restoreCounts: List<Int>? = null,
@@ -42,7 +48,9 @@ class SettingsViewModel(
     private val alarms: AlarmAdapter,
     private val notifications: NotificationAdapter,
     private val clock: Clock,
-    private val deleteLocal: () -> Unit
+    private val deleteLocal: () -> Unit,
+    private val activityAlarms: ActivityAlarmAdapter? = null,
+    private val clearBootstrap: suspend () -> Unit = {}
 ) : ViewModel() {
     private val crypto = BackupService()
     private val exportPolicy = ExportPolicy()
@@ -51,6 +59,19 @@ class SettingsViewModel(
     val uiState = _uiState.asStateFlow()
     private var preparedBackup: ByteArray? = null
     private var preparedRestore: RecoverySnapshot? = null
+    private var backupSnapshot: RecoverySnapshot? = null
+    fun setExportEnd(value: String) { _uiState.update { it.copy(exportEnd=value.take(10),markdownPreview=null) } }
+    fun category(key: String,enabled: Boolean) { _uiState.update { it.copy(categories=if(enabled) it.categories+key else it.categories-key,markdownPreview=null) } }
+    fun routes(enabled: Boolean) { backupSnapshot=null; _uiState.update { it.copy(includeRoutes=enabled,backupCounts=null) } }
+    fun prepareBackupScope() = work(R.string.backup_failed) {
+        val snapshot = repository.snapshot(_uiState.value.includeRoutes)
+        backupSnapshot=snapshot
+        val a=snapshot.expanded!!
+        _uiState.update { it.copy(backupCounts=listOf(a.recordCount+snapshot.plans.size+snapshot.reviews.size+snapshot.timers.size,
+            a.tasks.size,a.habits.size,a.sessions.size,a.water.size+a.sleep.size+a.meals.size+a.careLogs.size,a.routes.size)) }
+    }
+    fun cancelBackupScope() { backupSnapshot=null; _uiState.update { it.copy(backupCounts=null) } }
+    fun scopeConfirmed() { _uiState.update { it.copy(backupCounts=null) } }
 
     fun toggleSensitiveExport(enabled: Boolean) {
         _uiState.update { it.copy(includeSensitiveExport = enabled, markdownPreview = null) }
@@ -64,9 +85,8 @@ class SettingsViewModel(
     fun prepareMarkdown() = work(R.string.export_failed) {
         val state = _uiState.value
         val day = LocalDate.parse(state.exportDate)
-        val (plan, review) = repository.markdownRecords(day)
-        val markdown = exportPolicy.generateMarkdown(day, plan, review, state.includeSensitiveExport,
-            state.includeEvidence, state.includeIndicators)
+        val end=LocalDate.parse(state.exportEnd.ifBlank { state.exportDate })
+        val markdown=repository.markdown(day,end,state.categories,state.includeEvidence,clock)
         _uiState.update { it.copy(markdownPreview = markdown) }
     }
     fun exportMarkdown(uri: Uri?) {
@@ -82,7 +102,8 @@ class SettingsViewModel(
         if (_uiState.value.isProcessing) { passphrase.fill('\u0000'); return }
         work(R.string.backup_failed) {
             try {
-                val payload = RecoveryCodec.encode(repository.snapshot())
+                val payload = PortableCodec.encode(requireNotNull(backupSnapshot))
+                backupSnapshot=null
                 preparedBackup?.fill(0)
                 preparedBackup = crypto.createEncryptedBackup(payload, passphrase)
                 _uiState.update { it.copy(backupReady = true) }
@@ -110,10 +131,10 @@ class SettingsViewModel(
                 val bytes = documentAdapter.readBackupFromUri(uri) ?: error("Unreadable archive")
                 val payload = try { crypto.restoreEncryptedBackup(bytes, passphrase) } finally { bytes.fill(0) }
                     ?: error("Invalid archive")
-                val snapshot = RecoveryCodec.decode(payload)
+                val snapshot = PortableCodec.decode(payload)
                 preparedRestore = snapshot
                 _uiState.update { it.copy(
-                    restoreCounts = listOf(snapshot.plans.size, snapshot.reviews.size, snapshot.timers.size),
+                    restoreCounts = listOf(snapshot.plans.size + (snapshot.expanded?.recordCount ?: 0), snapshot.reviews.size, snapshot.timers.size),
                     restoreRange = listOfNotNull(snapshot.firstDay, snapshot.lastDay).joinToString(" – ")
                 ) }
             } finally { passphrase.fill('\u0000') }
@@ -127,7 +148,7 @@ class SettingsViewModel(
         val snapshot = preparedRestore ?: return
         work(R.string.restore_failed) {
             val oldTimers = repository.replace(snapshot)
-            oldTimers.forEach(alarms::cancelAlarm)
+            oldTimers.forEach { alarms.cancelAlarm(it); activityAlarms?.cancel(it) }
             notifications.cancelAll()
             preparedRestore = null
             _uiState.update { it.copy(restoreCounts = null, importCompleted = true, statusMessage = R.string.restore_success) }
@@ -135,9 +156,9 @@ class SettingsViewModel(
     }
     fun importHandled() { _uiState.update { it.copy(importCompleted = false) } }
     fun clearLocalData() = work(R.string.delete_failed) {
-        val timers = repository.snapshot().timers
-        timers.forEach { alarms.cancelAlarm(it.id) }
+        repository.cancelPending(alarms::cancelAlarm) { activityAlarms?.cancel(it) }
         deleteLocal()
+        clearBootstrap()
         _uiState.update { it.copy(importCompleted = true, statusMessage = R.string.delete_success) }
     }
     fun status(message: Int) { _uiState.update { it.copy(statusMessage = message) } }
@@ -155,6 +176,6 @@ class SettingsViewModel(
         }
     }
     override fun onCleared() {
-        preparedBackup?.fill(0); preparedRestore = null
+        preparedBackup?.fill(0); preparedRestore = null; backupSnapshot=null
     }
 }

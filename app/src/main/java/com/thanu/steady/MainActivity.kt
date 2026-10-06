@@ -42,6 +42,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val access by accessModel.state.collectAsState()
             var profile by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.thanu.steady.data.ExpandedProfile()) }
+            var safetyVisible by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            androidx.compose.runtime.SideEffect {
+                if (!access.canOpenPrivate || access.bootstrap.hideRecents || safetyVisible) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            }
             val saved = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
             com.thanu.steady.ui.SteadyTheme(profile = if (access.canOpenPrivate) profile else com.thanu.steady.data.ExpandedProfile(theme = "DARK", highContrast = true)) {
                 Surface(
@@ -49,7 +54,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     if (access.canOpenPrivate) saved.SaveableStateProvider("private_navigation") {
-                        com.thanu.steady.ui.ExpandedNavigation(appContainer, access, ::authenticate, { profile = it })
+                        com.thanu.steady.ui.ExpandedNavigation(appContainer, access, ::authenticate, { profile = it }, { safetyVisible = it })
                     } else com.thanu.steady.ui.ExpandedPage {
                         com.thanu.steady.ui.PublicSafetyPanel(access.bootstrap.country)
                         if (access.loading) Text(getString(R.string.loading_access))

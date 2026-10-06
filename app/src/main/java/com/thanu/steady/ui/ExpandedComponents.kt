@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.thanu.steady.R
 
 @Composable fun ExpandedPage(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(20.dp),
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).imePadding().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp), content = content)
 }
 @Composable fun SectionCard(@StringRes title: Int, content: @Composable ColumnScope.() -> Unit) {

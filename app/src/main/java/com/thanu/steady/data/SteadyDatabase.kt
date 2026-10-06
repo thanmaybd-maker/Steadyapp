@@ -23,6 +23,7 @@ abstract class SteadyDatabase : RoomDatabase() {
     abstract fun reviewDao(): ReviewDao
     abstract fun preferencesDao(): PreferencesDao
     abstract fun expandedDao(): ExpandedDao
+    abstract fun portableDao(): PortableDao
 
     companion object {
         val MIGRATION_2_3 = object : Migration(2, 3) {

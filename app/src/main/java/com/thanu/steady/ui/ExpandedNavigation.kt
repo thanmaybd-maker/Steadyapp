@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -20,7 +21,8 @@ import com.thanu.steady.di.AppContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ExpandedNavigation(container: AppContainer, access: AccessState,
-    onAuthentication: ((() -> Unit)?) -> Unit, onTheme: (com.thanu.steady.data.ExpandedProfile) -> Unit) {
+    onAuthentication: ((() -> Unit)?) -> Unit, onTheme: (com.thanu.steady.data.ExpandedProfile) -> Unit,
+    onSafetyVisibility: (Boolean) -> Unit = {}) {
     val model: ExpandedViewModel = viewModel(factory = object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
@@ -33,6 +35,9 @@ import com.thanu.steady.di.AppContainer
     val entry by nav.currentBackStackEntryAsState()
     val tab = entry?.destination?.route ?: "today"
     var publicSafety by rememberSaveable { mutableStateOf(false) }
+    var privateSafety by rememberSaveable { mutableStateOf(false) }
+    SideEffect { onSafetyVisibility(publicSafety || privateSafety || tab == "safety") }
+    DisposableEffect(Unit) { onDispose { onSafetyVisibility(false) } }
     val safety = { publicSafety = true }
     val profile = state.period?.profile
     LaunchedEffect(profile) { profile?.let(onTheme) }
@@ -43,10 +48,11 @@ import com.thanu.steady.di.AppContainer
         launchSingleTop = true; restoreState = true
     } }
     val largeText = LocalDensity.current.fontScale > 1.4f
+    val wide = LocalConfiguration.current.screenWidthDp >= 600 && !largeText
     var chooseTab by remember { mutableStateOf(false) }
     Scaffold(topBar = {
         TopAppBar(title = { Text(stringResource(tabs.firstOrNull { it.first == tab }?.second ?: R.string.app_name)) },
-            actions = { TextButton(onClick = { nav.navigate("safety") }, modifier = Modifier.heightIn(min = 56.dp)) { Text(stringResource(R.string.safety_action)) } })
+            actions = { TextButton(onClick = { privateSafety = true }, modifier = Modifier.heightIn(min = 56.dp)) { Text(stringResource(R.string.safety_action)) } })
     }, bottomBar = {
         if (largeText) {
             Column(Modifier.padding(8.dp)) {
@@ -56,13 +62,18 @@ import com.thanu.steady.di.AppContainer
                         modifier = Modifier.heightIn(min = 56.dp), onClick = { chooseTab = false; navigate(route) }) }
                 }
             }
-        } else NavigationBar {
+        } else if (!wide) NavigationBar {
             tabs.forEachIndexed { index, (route, label) -> NavigationBarItem(selected = tab == route,
                 onClick = { navigate(route) }, modifier = Modifier.heightIn(min = 56.dp),
                 icon = { Text(listOf("◉", "♡", "◷", "▦", "⚙")[index]) }, label = { Text(stringResource(label)) }) }
         }
     }) { padding ->
-        Box(Modifier.padding(padding)) {
+        Row(Modifier.padding(padding).consumeWindowInsets(padding)) {
+            if (wide) NavigationRail {
+                tabs.forEach { (route,label) -> NavigationRailItem(selected = tab == route,onClick = { navigate(route) },
+                    modifier = Modifier.heightIn(min=56.dp),icon = { Text(stringResource(label)) }) }
+            }
+        Box(Modifier.weight(1f)) {
             if (state.loading && profile == null) ExpandedPage { StateMessages(state); SecondaryAction(R.string.retry) { model.reload() } }
             else if (profile == null) ExpandedPage { StateMessages(state); PublicSafetyPanel(access.bootstrap.country); SecondaryAction(R.string.retry) { model.reload() } }
             else if (!profile.onboarded) ExpandedOnboarding(model, state, safety)
@@ -78,9 +89,20 @@ import com.thanu.steady.di.AppContainer
                             @Suppress("UNCHECKED_CAST") return SafetyViewModel(container.privateSafetyRepository, container.clock) as T
                         }
                     })
-                    SafetyScreen(safetyModel)
+                    SafetyScreen(safetyModel, access.bootstrap.country)
                 }
             }
+        }
+        }
+    }
+    if (privateSafety) Dialog(onDismissRequest = { privateSafety = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val safetyModel: SafetyViewModel = viewModel(key = "global_private_safety", factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST") return SafetyViewModel(container.privateSafetyRepository,container.clock) as T
+            }
+        })
+        Surface(Modifier.fillMaxSize()) {
+            Column { SecondaryAction(R.string.close_action) { privateSafety = false }; Box(Modifier.weight(1f)) { SafetyScreen(safetyModel,access.bootstrap.country) } }
         }
     }
     if (publicSafety) Dialog(onDismissRequest = { publicSafety = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {

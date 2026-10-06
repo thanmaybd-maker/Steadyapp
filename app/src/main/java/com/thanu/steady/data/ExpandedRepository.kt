@@ -31,7 +31,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         require(value.weightKg == null || value.weightKg.isFinite() && value.weightKg in 1.0..1000.0)
         require(value.focusTargetMinutes == null || value.focusTargetMinutes in 1..1440)
         require(value.stepTarget == null || value.stepTarget > 0)
-        val cards = value.dashboard.split(',')
+        val cards = value.dashboard.split(',').filter(String::isNotBlank)
         require(cards.distinct().size == cards.size && cards.all { it in setOf("NEXT", "RINGS", "TIMELINE", "HABITS", "CAPTURE", "FOOD") })
         provider().expandedDao().save(value)
     }
@@ -67,22 +67,35 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         return db.withTransaction {
             val p = db.preferencesDao().get() ?: AppPreferences()
             val profile = db.expandedDao().profile() ?: ExpandedProfile()
-            val bounds = ActivityTotals.dayBounds(start, ZoneId.of(p.zoneId), p.boundaryMinutes)
-            val stop = ActivityTotals.dayBounds(end, ZoneId.of(p.zoneId), p.boundaryMinutes).end - 1
+            // Query a bounded UTC envelope, then interpret segments using their stored policy.
+            // All supported zone offsets and a full logical-day shift fit inside two days.
+            val begin = start.minusDays(2).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            val stop = end.plusDays(3).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() - 1
             val dao = db.expandedDao()
+            val segments = dao.segmentsInRange(begin, stop)
+            val relevantSessions = segments.filter { segment ->
+                if (segment.endWall == null) false else {
+                    val first = ActivityTotals.dayBounds(start,ZoneId.of(segment.zone),segment.boundary).start
+                    val last = ActivityTotals.dayBounds(end,ZoneId.of(segment.zone),segment.boundary).end
+                    segment.startWall < last && segment.endWall > first
+                }
+            }.mapTo(mutableSetOf()) { it.sessionId }
+            val sessions = dao.sessions(begin, stop).filter { session ->
+                val date = (session.ended ?: session.started)?.let { LogicalDayPolicy().getLogicalDay(Instant.ofEpochMilli(it), ZoneId.of(session.zone),session.boundary) }
+                date != null && date in start..end || session.id in relevantSessions
+            }
             PeriodSnapshot(start, end, profile, p, dao.days(start.toString(), end.toString()),
                 dao.tasks(start.toString(), end.toString()), dao.habits(), dao.versionsForRange(start.toString(), end.toString()),
-                dao.occurrences(start.toString(), end.toString()), dao.sessions(bounds.start, stop),
-                dao.segmentsInRange(bounds.start, stop), dao.activeSessions(), dao.subjects(),
+                dao.occurrences(start.toString(), end.toString()), sessions,
+                segments, dao.activeSessions(), dao.subjects(),
                 dao.water(start.toString(), end.toString()), dao.sleep(start.toString(), end.toString()), dao.foods(),
                 dao.meals(start.toString(), end.toString()), dao.care(), dao.careLogs(start.toString(), end.toString()),
                 dao.captures(), dao.observations(start.toString(), end.toString()), dao.reflection(start.toString(), end.toString()))
         }
     }
     suspend fun observe(start: LocalDate, end: LocalDate): Flow<PeriodSnapshot> {
-        val p = preferences.get()
-        val begin = ActivityTotals.dayBounds(start, ZoneId.of(p.zoneId), p.boundaryMinutes).start
-        val stop = ActivityTotals.dayBounds(end, ZoneId.of(p.zoneId), p.boundaryMinutes).end - 1
+        val begin = start.minusDays(2).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val stop = end.plusDays(3).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() - 1
         return provider().expandedDao().observeChanges(start.toString(), end.toString(), begin, stop).map { snapshot(start, end) }
     }
     suspend fun setDay(day: LocalDate, mode: String? = null, next: String? = null, shutdown: Boolean = false) {
@@ -114,7 +127,10 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
         db.withTransaction { val task = requireNotNull(db.expandedDao().task(id));
             db.expandedDao().save(task.copy(state = if (task.state == "COMPLETED") "PENDING" else "COMPLETED", updated = clock.millis())) }
     }
-    suspend fun deleteTask(id: String) = provider().expandedDao().deleteTask(id)
+    suspend fun deleteTask(id: String) {
+        val db = provider()
+        db.withTransaction { db.expandedDao().detachTask(id); db.expandedDao().deleteTask(id) }
+    }
     suspend fun saveHabit(version: HabitVersion) {
         UUID.fromString(version.id); UUID.fromString(version.habitId)
         LocalDate.parse(version.effectiveDay); LocalDate.parse(version.anchorDay)

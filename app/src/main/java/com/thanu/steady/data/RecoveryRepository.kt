@@ -13,31 +13,81 @@ import java.util.UUID
 data class RecoverySnapshot(
     val plans: List<DailyPlanEntity>,
     val reviews: List<WeeklyReviewEntity>,
-    val timers: List<TimerSessionEntity>
+    val timers: List<TimerSessionEntity>,
+    val expanded: ExpandedArchive? = null
 ) {
-    val firstDay get() = plans.minOfOrNull { it.logicalDay }
-    val lastDay get() = plans.maxOfOrNull { it.logicalDay }
+    private val dates get() = plans.map { it.logicalDay } + (expanded?.let { a ->
+        (a.tasks.map { it.day } + a.occurrences.map { it.day } + a.water.map { it.day } + a.sleep.map { it.day } +
+         a.days.map { it.day } + a.meals.map { it.day }).map(LocalDate::parse) } ?: emptyList())
+    val firstDay get() = dates.minOrNull()
+    val lastDay get() = dates.maxOrNull()
 }
 
 /** Only eligible organiser tables cross this boundary; Safety is never queried. */
 class RecoveryRepository(private val databaseProvider: () -> SteadyDatabase) {
+    suspend fun cancelPending(cancelLegacy: (String) -> Unit, cancelActivity: (String) -> Unit) {
+        try {
+            val db = databaseProvider()
+            db.timerDao().getAll().forEach { cancelLegacy(it.id) }
+            db.expandedDao().activeSessions().forEach { cancelActivity(it.id) }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { /* Receivers cannot validate sessions once their stores have been deleted. */ }
+    }
     suspend fun markdownRecords(day: LocalDate): Pair<com.thanu.steady.domain.DailyPlan?, com.thanu.steady.domain.WeeklyReview?> {
         val db = databaseProvider()
         return db.withTransaction {
             db.dailyPlanDao().getPlan(day)?.toDomain() to db.reviewDao().getReview(day)?.toDomain()
         }
     }
-    suspend fun snapshot(): RecoverySnapshot {
+    suspend fun markdown(start: LocalDate,end: LocalDate,categories: Set<String>,notes: Boolean,clock: java.time.Clock): String {
+        val db = databaseProvider()
+        return ExpandedMarkdown.generate(ExpandedRepository({ db },clock,PreferencesRepository { db }).snapshot(start,end),categories,notes)
+    }
+    suspend fun snapshot(includeRoutes: Boolean = false): RecoverySnapshot {
         val db = databaseProvider()
         return db.withTransaction {
-            RecoverySnapshot(db.dailyPlanDao().getAll(), db.reviewDao().getAll(), db.timerDao().getAll())
+            val dao = db.portableDao()
+            require(dao.count() <= PortableCodec.MAX_RECORDS)
+            val organiser = ExpandedArchive(
+                tasks = dao.allTasks(),
+                habits = dao.allHabits(),
+                versions = dao.allVersions(),
+                occurrences = dao.allOccurrences(),
+                logs = dao.allLogs(),
+                subjects = dao.allSubjects(),
+                topics = dao.allTopics(),
+                sessions = dao.allSessions().map { s -> s.copy(wallAnchor = null, elapsedAnchor = null, deadlineElapsed = null,
+                    boot = 0, generation = 0, state = if (s.state in setOf("RUNNING","PAUSED")) "INTERRUPTED" else s.state) },
+                segments = dao.allSegments().map { s -> s.copy(elapsedStart = 0, elapsedEnd = s.endWall?.let { s.activeMillis }) },
+                notes = dao.allNotes(),
+                sets = dao.allSets(),
+                templates = dao.allTemplates(),
+                water = dao.allWater(),
+                sleep = dao.allSleep(),
+                foods = dao.allFoods(),
+                meals = dao.allMeals(),
+                care = dao.allCare(),
+                careLogs = dao.allCareLogs(),
+                reflections = dao.allReflections(),
+                captures = dao.allCaptures(),
+                interruptions = dao.allInterruptions(),
+                observations = dao.allObservations(),
+                routes = if (includeRoutes) dao.allRoutes() else emptyList(),
+                estimates = dao.allEstimates(),
+                days = dao.allDays(),
+                profile = db.expandedDao().profile(),
+                preferences = db.preferencesDao().get()?.copy(appLock = false, hideRecents = true))
+            PortableCodec.validate(organiser)
+            RecoverySnapshot(db.dailyPlanDao().getAll(), db.reviewDao().getAll(), db.timerDao().getAll(), organiser)
         }
     }
 
     suspend fun replace(snapshot: RecoverySnapshot): List<String> {
+        snapshot.expanded?.let(PortableCodec::validate)
         val db = databaseProvider()
         return db.withTransaction {
             val previousTimerIds = db.timerDao().getAll().map { it.id }
+            val previousActivityIds = db.expandedDao().activeSessions().map { it.id }
             db.dailyPlanDao().clear()
             db.reviewDao().clear()
             db.timerDao().clear()
@@ -49,7 +99,67 @@ class RecoveryRepository(private val databaseProvider: () -> SteadyDatabase) {
                     remainingMs = it.durationMs, generation = it.generation + 1
                 ))
             }
-            previousTimerIds
+            snapshot.expanded?.let { a ->
+                val dao = db.portableDao()
+                dao.clearTasks()
+                dao.clearHabits()
+                dao.clearVersions()
+                dao.clearOccurrences()
+                dao.clearLogs()
+                dao.clearSubjects()
+                dao.clearTopics()
+                dao.clearSessions()
+                dao.clearSegments()
+                dao.clearNotes()
+                dao.clearSets()
+                dao.clearTemplates()
+                dao.clearWater()
+                dao.clearSleep()
+                dao.clearFoods()
+                dao.clearMeals()
+                dao.clearCare()
+                dao.clearCareLogs()
+                dao.clearReflections()
+                dao.clearCaptures()
+                dao.clearInterruptions()
+                dao.clearObservations()
+                dao.clearRoutes()
+                dao.clearEstimates()
+                dao.clearDays()
+                dao.clearProfile(); dao.clearPreferences()
+                dao.restoreTasks(a.tasks)
+                dao.restoreHabits(a.habits)
+                dao.restoreVersions(a.versions)
+                dao.restoreOccurrences(a.occurrences)
+                dao.restoreLogs(a.logs)
+                dao.restoreSubjects(a.subjects)
+                dao.restoreTopics(a.topics)
+                dao.restoreNotes(a.notes)
+                dao.restoreSets(a.sets)
+                dao.restoreTemplates(a.templates)
+                dao.restoreWater(a.water)
+                dao.restoreSleep(a.sleep)
+                dao.restoreFoods(a.foods)
+                dao.restoreMeals(a.meals)
+                dao.restoreCare(a.care)
+                dao.restoreCareLogs(a.careLogs)
+                dao.restoreReflections(a.reflections)
+                dao.restoreCaptures(a.captures)
+                dao.restoreInterruptions(a.interruptions)
+                dao.restoreObservations(a.observations)
+                dao.restoreRoutes(a.routes)
+                dao.restoreEstimates(a.estimates)
+                dao.restoreDays(a.days)
+                dao.restoreSessions(a.sessions.map { s ->
+                    if (s.state in setOf("RUNNING","PAUSED","INTERRUPTED")) s.copy(state = "INTERRUPTED",
+                        wallAnchor = null, elapsedAnchor = null, deadlineElapsed = null, generation = s.generation + 1)
+                    else s.copy(wallAnchor = null, elapsedAnchor = null, deadlineElapsed = null)
+                })
+                dao.restoreSegments(a.segments.map { if (it.endWall == null) it.copy(endWall = it.startWall + it.activeMillis,
+                    elapsedEnd = it.elapsedStart + it.activeMillis) else it })
+                a.profile?.let { db.expandedDao().save(it) }; a.preferences?.let { db.preferencesDao().save(it) }
+            }
+            previousTimerIds + previousActivityIds
         }
     }
 }

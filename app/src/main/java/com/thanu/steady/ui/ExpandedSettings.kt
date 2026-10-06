@@ -24,11 +24,11 @@ import com.thanu.steady.di.AppContainer
         val settingsModel: SettingsViewModel = viewModel(factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST") return SettingsViewModel(container.recoveryRepository, container.documentAdapter,
-                    container.alarmAdapter, container.notificationAdapter, container.clock, container::deleteLocalData) as T
+                    container.alarmAdapter, container.notificationAdapter, container.clock, container::deleteLocalData,
+                    container.activityAlarms, { container.bootstrap.clear() }) as T
             }
         })
-        ExpandedPage { SecondaryAction(R.string.back_action) { files = false } }
-        SettingsScreen(settingsModel) { files = false; model.reload() }
+        SettingsScreen(settingsModel, onBack = { files = false }) { files = false; model.reload() }
         return
     }
     ExpandedPage {

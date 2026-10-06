@@ -4,6 +4,7 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+@kotlinx.serialization.Serializable
 @Entity(tableName = "app_preferences")
 data class AppPreferences(
     @PrimaryKey val id: Int = 1,

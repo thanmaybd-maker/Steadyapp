@@ -16,6 +16,7 @@ interface ExpandedDao {
     @Query("SELECT * FROM plan_item WHERE id = :id") suspend fun task(id: String): PlanItem?
     @Upsert suspend fun save(value: PlanItem)
     @Query("DELETE FROM plan_item WHERE id = :id") suspend fun deleteTask(id: String)
+    @Query("UPDATE activity_session SET taskId = NULL WHERE taskId = :id") suspend fun detachTask(id: String)
     @Query("SELECT * FROM habit_definition") suspend fun habits(): List<HabitDefinition>
     @Query("SELECT * FROM habit_definition WHERE id = :id") suspend fun habit(id: String): HabitDefinition?
     @Upsert suspend fun save(value: HabitDefinition)

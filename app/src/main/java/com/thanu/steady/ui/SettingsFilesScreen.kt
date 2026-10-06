@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.thanu.steady.R
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onImportCompleted: () -> Unit = {}) {
+fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, onImportCompleted: () -> Unit = {}) {
     val state by viewModel.uiState.collectAsState()
     var passwordMode by remember { mutableStateOf<String?>(null) }
     var restoreUri by remember { mutableStateOf<Uri?>(null) }
@@ -54,6 +54,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onImportCompleted: () -> Unit =
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         ScreenHeading(R.string.settings_title)
+        onBack?.let { SecondaryAction(R.string.back_action, onClick = it) }
         state.statusMessage?.let {
             Text(stringResource(it), Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         }
@@ -65,27 +66,23 @@ fun SettingsScreen(viewModel: SettingsViewModel, onImportCompleted: () -> Unit =
         OutlinedTextField(state.exportDate, viewModel::setExportDate,
             label = { Text(stringResource(R.string.export_date)) }, modifier = Modifier.fillMaxWidth(),
             enabled = !state.isProcessing, singleLine = true)
-        Row {
-            Checkbox(state.includeSensitiveExport, viewModel::toggleSensitiveExport,
-                enabled = !state.isProcessing, modifier = Modifier.sizeIn(minWidth = 56.dp, minHeight = 56.dp))
-            Text(stringResource(R.string.export_sensitive), Modifier.padding(top = 12.dp))
-        }
+        TextInput(state.exportEnd,R.string.export_end_optional,viewModel::setExportEnd)
+        listOf("TASKS" to R.string.timeline_title,"HABITS" to R.string.habits_title,"FOCUS" to R.string.focus_tab,
+            "WORKOUTS" to R.string.movement_title,"WATER" to R.string.water_title,"SLEEP" to R.string.sleep_title,
+            "FOOD" to R.string.food_title,"CARE" to R.string.care_title,"REFLECTION" to R.string.reflection_title,
+            "CAPTURE" to R.string.capture_title).forEach { (key,label) -> ToggleRow(label,key in state.categories) { viewModel.category(key,it) } }
         Row {
             Checkbox(state.includeEvidence, viewModel::toggleEvidence, enabled = !state.isProcessing,
                 modifier = Modifier.sizeIn(minWidth = 56.dp, minHeight = 56.dp))
             Text(stringResource(R.string.export_evidence), Modifier.padding(top = 12.dp))
-        }
-        Row {
-            Checkbox(state.includeIndicators, viewModel::toggleIndicators, enabled = !state.isProcessing,
-                modifier = Modifier.sizeIn(minWidth = 56.dp, minHeight = 56.dp))
-            Text(stringResource(R.string.export_indicators), Modifier.padding(top = 12.dp))
         }
         Text(stringResource(R.string.export_disclosure))
         ActionButton(R.string.preview_export, enabled = !state.isProcessing, onClick = viewModel::prepareMarkdown)
         Divider()
         Text(stringResource(R.string.backup_title), style = MaterialTheme.typography.titleLarge)
         Text(stringResource(R.string.backup_disclosure))
-        ActionButton(R.string.create_backup, enabled = !state.isProcessing, onClick = { passwordMode = "backup" })
+        ToggleRow(R.string.backup_routes,state.includeRoutes,viewModel::routes)
+        ActionButton(R.string.create_backup, enabled = !state.isProcessing, onClick = viewModel::prepareBackupScope)
         ActionButton(R.string.restore_backup, enabled = !state.isProcessing, onClick = {
             restoreLauncher.launch(arrayOf("application/octet-stream", "application/x-steady-backup", "*/*"))
         })
@@ -105,6 +102,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onImportCompleted: () -> Unit =
             dismissButton = { ActionButton(R.string.cancel, onClick = viewModel::clearPreview) }
         )
     }
+    state.backupCounts?.let { counts -> AlertDialog(onDismissRequest=viewModel::cancelBackupScope,
+        title={ Text(stringResource(R.string.backup_scope_title)) },text={ Column {
+            Text(stringResource(R.string.backup_scope_counts,counts[0],counts[1],counts[2],counts[3],counts[4],counts[5]))
+            Text(stringResource(R.string.backup_scope_exclusions))
+        } },confirmButton={ ActionButton(R.string.continue_action) { viewModel.scopeConfirmed(); passwordMode="backup" } },
+        dismissButton={ ActionButton(R.string.cancel,onClick=viewModel::cancelBackupScope) }) }
     if (passwordMode != null) {
         val creating = passwordMode == "backup"
         AlertDialog(
@@ -138,7 +141,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onImportCompleted: () -> Unit =
             onDismissRequest = viewModel::cancelRestore,
             title = { Text(stringResource(R.string.restore_confirm_title)) },
             text = { Column {
-                Text(stringResource(R.string.restore_counts, counts[0], counts[1], counts[2]))
+                Text(stringResource(R.string.restore_scope_summary, counts[0], counts[1], counts[2]))
                 if (state.restoreRange.isNotBlank()) Text(state.restoreRange)
                 Text(stringResource(R.string.restore_replace_disclosure))
             } },
