@@ -25,8 +25,20 @@ build BP2A.250605.031.A3; HyperOS OS3.0.304.0.WNCINXM.
 
 ## Current checkpoint limits
 
-Timer/persistence/preference and migration changes following `be3d20e` are under
-verification at this commit. Do not attribute baseline results to unverified changes.
+Code `a36e6da`, preserved with original GitHub history by merge `11b2f0a`:
+`:app:assembleDebug :app:testDebugUnitTest :app:lintDebug --no-daemon --console=plain`
+finished BUILD SUCCESSFUL in 1m 25s. All 14 unit tests passed (8 recovery,
+3 logical-day including DST, 3 timer state-machine); lint had 0 errors and
+41 warnings. `:app:connectedDebugAndroidTest --no-daemon --console=plain` then
+finished BUILD SUCCESSFUL in 57s: all 4 encrypted storage/recovery device tests
+passed on the Xiaomi running Android 16. These tests do not establish upgrade
+migration or background timer delivery acceptance.
+
+Latest debug APK SHA-256:
+`5a722a12165f15c2d661a65c68d374ea74a530fb460a388b3ef853f8b570e70b`.
+
+Timer/persistence/preference and upgrade migration device behaviour following
+`be3d20e` still needs dedicated acceptance tests beyond this regression suite.
 Screenshots were not captured because private Safety must never be captured.
 Maximum text/display, TalkBack, screen-off/Doze/OEM timer delivery, app lock and
 end-to-end SAF provider interaction have not been accepted locally. Several v0.1

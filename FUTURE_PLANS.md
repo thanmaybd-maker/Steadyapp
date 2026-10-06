@@ -20,7 +20,9 @@ feature or authorization to expand v0.1.
 - This checkpoint adds persisted timer transitions with generation checks, completion
   deduplication, boot/clock reconciliation, contextual notification permission,
   accessible Break controls, encrypted preference storage and explicit migration
-  2 to 3. Verification of these newer changes is pending at this commit.
+  2 to 3. Code checkpoint `a36e6da` passed assembleDebug, all 14 unit tests and
+  lint (0 errors, 41 warnings). Device regression results are recorded in the
+  checkpoint evidence; timer delivery and upgrade migration acceptance remain open.
 
 ## Finish v0.1 first
 

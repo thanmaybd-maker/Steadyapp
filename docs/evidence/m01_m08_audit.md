@@ -1,5 +1,10 @@
 # Steady M01-M08 Verification Audit
 
+**Current status:** this historical source audit is superseded where fixes and
+passing commands are documented in [the Windows/Xiaomi checkpoint](checkpoint-2026-10-06.md).
+The existing GitHub checkpoint was retained; remaining acceptance work is listed
+in `FUTURE_PLANS.md`. Do not use the old missing-tools/no-APK statements as current status.
+
 ## Superseding audit — 6 October 2026
 
 Build/setup code checkpoint `5ec62ab`, source checkpoint `d33cce2`. The current
