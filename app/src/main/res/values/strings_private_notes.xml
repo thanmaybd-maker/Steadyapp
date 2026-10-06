@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mask_private_content">Mask private content on this screen</string>
+    <string name="private_content_masked">Private content is hidden, including from accessibility text. Turn masking off when you want to view it.</string>
+    <string name="private_notes_title">Additional private notes</string>
+    <string name="private_notes_empty">No additional notes saved.</string>
+    <string name="private_note_exclusion">These notes and drafts stay in the independently encrypted Safety store. They are excluded from ordinary backup, export and connected requests.</string>
+    <string name="private_note_add">Add private note</string>
+    <string name="private_note_resume">Resume private note draft</string>
+    <string name="private_note_pending_draft">A note draft is retained. Save or discard it before editing another note.</string>
+    <string name="private_note_discard">Discard this note draft</string>
+    <string name="private_note_editor">Private note</string>
+    <string name="private_note_title">Private note title</string>
+    <string name="private_note_content">Private note content</string>
+    <string name="private_note_untitled">Untitled private note</string>
+    <string name="private_note_pin">Pin note</string>
+    <string name="private_note_unpin">Unpin note</string>
+    <string name="private_note_contact">Emergency contact note</string>
+    <string name="private_note_medical">Your medical or allergy note</string>
+    <string name="private_note_route">Safe walk route note</string>
+    <string name="private_note_campus">Campus security note</string>
+    <string name="private_note_grounding">Grounding note</string>
+    <string name="private_note_other">Other private note</string>
+    <string name="private_note_pending_save">Draft save pending</string>
+    <string name="private_notes_load_failed">Private notes could not be loaded. Public help remains available.</string>
+    <string name="private_note_save_failed">This note action could not be completed. Your draft and existing records are retained.</string>
+    <string name="open_contact_sms">Open reviewed SMS composer</string>
+    <string name="sms_composer_unavailable">An SMS composer could not be opened. No message was sent.</string>
+    <string name="grounding_title">Optional sensory grounding</string>
+    <string name="grounding_optional">Use only the senses that work for you. Skip any step or leave at any time; breathe normally and comfortably.</string>
+    <string name="grounding_step">Step %1$d of %2$d</string>
+    <string name="grounding_see">Notice up to five things you can see: objects, shapes or colours around you.</string>
+    <string name="grounding_touch">Notice up to four comfortable points of contact or textures. You can keep your hands still.</string>
+    <string name="grounding_hear">Notice up to three sounds, or skip this sense.</string>
+    <string name="grounding_smell">Notice up to two familiar scents if comfortable. You do not need to seek out or inhale anything.</string>
+    <string name="grounding_taste">Notice one familiar taste, or simply one detail around you. You do not need to eat or drink anything.</string>
+    <string name="grounding_previous">Previous step</string>
+    <string name="grounding_next">Next step</string>
+    <string name="grounding_skip">Skip this step</string>
+    <string name="grounding_finish">Finish when ready</string>
+</resources>

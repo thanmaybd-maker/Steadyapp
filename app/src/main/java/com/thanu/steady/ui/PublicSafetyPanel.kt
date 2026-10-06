@@ -8,9 +8,10 @@ import com.thanu.steady.R
 import com.thanu.steady.platform.DialerAdapter
 
 /** No repository, authentication or personal fields enter this public component. */
-@Composable fun PublicSafetyPanel(country: String = "IN", onPrivate: (() -> Unit)? = null) {
+@Composable fun PublicSafetyPanel(country: String = "IN", onPrivate: (() -> Unit)? = null,offerGrounding: Boolean=true) {
     val context = LocalContext.current
     var dialFailed by remember { mutableStateOf(false) }
+    var grounding by remember { mutableStateOf(false) }
     SectionCard(R.string.public_help) {
         Text(stringResource(R.string.public_directory_reviewed))
         if (country != "IN") Text(stringResource(R.string.directory_region_limit))
@@ -18,6 +19,8 @@ import com.thanu.steady.platform.DialerAdapter
         PrimaryAction(R.string.dial_telemanas) { dialFailed = !DialerAdapter(context).openDialer("14416") }
         PrimaryAction(R.string.dial_emergency) { dialFailed = !DialerAdapter(context).openDialer("112") }
         if (dialFailed) Text(stringResource(R.string.dialer_unavailable), color = MaterialTheme.colorScheme.error)
+        if(offerGrounding) SecondaryAction(R.string.grounding_title) { grounding=true }
         onPrivate?.let { SecondaryAction(R.string.open_private_plan, onClick = it) }
     }
+    if(grounding) SensoryGrounding({ grounding=false },country)
 }

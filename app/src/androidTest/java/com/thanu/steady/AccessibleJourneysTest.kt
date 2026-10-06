@@ -104,6 +104,17 @@ class AccessibleJourneysTest {
         assertTrue(height >= 56 * compose.activity.resources.displayMetrics.density - 1)
         button(R.string.close_keep_draft).performScrollTo().assertIsDisplayed()
     }
+    @Test fun optionalGroundingCanSkipExitAndOpenPublicHelpAtDoubleText() {
+        compose.setContent { SteadyTheme(ExpandedProfile(textScale=2f,reducedMotion=true)) { ExpandedPage { PublicSafetyPanel() } } }
+        button(R.string.grounding_title).performScrollTo().performClick()
+        button(R.string.grounding_skip).performScrollTo().performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.grounding_step,2,5)).assertIsDisplayed()
+        button(R.string.public_help).performScrollTo().performClick()
+        button(R.string.dial_emergency).performScrollTo().assertIsDisplayed()
+        button(R.string.close_action).performScrollTo().performClick()
+        button(R.string.dial_telemanas).performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun publicHelpRendersWithoutPersonalRepositoryOrAuthentication() {
         compose.setContent { SteadyTheme(ExpandedProfile(textScale = 2f,highContrast = true)) { ExpandedPage { PublicSafetyPanel("IN") } } }
         button(R.string.dial_telemanas).performScrollTo().assertIsDisplayed()

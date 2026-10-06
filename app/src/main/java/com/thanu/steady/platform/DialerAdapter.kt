@@ -5,6 +5,14 @@ import android.content.Intent
 import android.net.Uri
 
 class DialerAdapter(private val context: Context) {
+    fun openSmsComposer(phoneNumber: String): Boolean {
+        val cleaned=phoneNumber.filterNot { it.isWhitespace() || it in "()-" }
+        if(!cleaned.matches(Regex("\\+?[0-9]{2,20}"))) return false
+        val intent=Intent(Intent.ACTION_SENDTO,Uri.fromParts("smsto",cleaned,null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try { context.startActivity(intent); true }
+        catch(_: android.content.ActivityNotFoundException) { false }
+        catch(_: SecurityException) { false }
+    }
     fun openDialer(phoneNumber: String): Boolean {
         val cleaned = phoneNumber.filterNot { it.isWhitespace() || it in "()-" }
         if (!cleaned.matches(Regex("\\+?[0-9]{2,20}"))) return false

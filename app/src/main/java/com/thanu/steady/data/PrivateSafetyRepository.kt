@@ -29,12 +29,14 @@ val SAFETY_MIGRATION_1_2 = object : androidx.room.migration.Migration(1,2) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `safety_draft` (`id` INTEGER NOT NULL, `content` TEXT NOT NULL, PRIMARY KEY(`id`))")
     }
 }
-@Database(entities = [SafetyPlanEntity::class, SupportContactEntity::class, SafetyMigration::class, SafetyDraftEntity::class], version = 2, exportSchema = true)
+@Database(entities = [SafetyPlanEntity::class, SupportContactEntity::class, SafetyMigration::class, SafetyDraftEntity::class,
+    PrivateSafetyNote::class,PrivateSafetyNoteDraft::class], version = 3, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class PrivateSafetyDatabase : RoomDatabase() {
     abstract fun safetyDao(): SafetyDao
     abstract fun migrationDao(): SafetyMigrationDao
     abstract fun draftDao(): SafetyDraftDao
+    abstract fun notesDao(): PrivateSafetyNotesDao
 }
 
 @Serializable private data class PrivateDraft(val fields: Map<String,String?>,val contacts: List<SupportContact>)
@@ -90,5 +92,42 @@ class PrivateSafetyRepository(private val privateProvider: () -> PrivateSafetyDa
         val value = Json.encodeToString(plan.draft())
         require(value.toByteArray(Charsets.UTF_8).size <= 8 * 1024 * 1024)
         database().draftDao().save(SafetyDraftEntity(content = value))
+    }
+    suspend fun notes(): List<PrivateSafetyNote> = database().notesDao().all().also { values -> values.forEach { it.validate() } }
+    suspend fun noteDraft(): PrivateSafetyNote? = database().notesDao().draft()?.let {
+        Json.decodeFromString<PrivateSafetyNote>(it.content).also { note -> note.validate(draft=true) }
+    }
+    suspend fun saveNoteDraft(note: PrivateSafetyNote) {
+        note.validate(draft=true)
+        database().notesDao().save(PrivateSafetyNoteDraft(content=Json.encodeToString(note)))
+    }
+    suspend fun discardNoteDraft() = database().notesDao().clearDraft()
+    suspend fun saveNote(note: PrivateSafetyNote) {
+        note.validate()
+        val db = database()
+        db.withTransaction {
+            val dao=db.notesDao(); val old=dao.note(note.id)
+            check(note.revision == (old?.revision ?: 0))
+            check(old != null || dao.count() < 5000)
+            dao.save(note.copy(created=old?.created ?: note.created,updated=maxOf(note.updated,old?.updated ?: note.updated),revision=note.revision+1))
+            if(dao.draft()?.let { Json.decodeFromString<PrivateSafetyNote>(it.content).id } == note.id) dao.clearDraft()
+        }
+    }
+    suspend fun pinNote(id: String,revision: Int,now: Long) {
+        val db=database()
+        db.withTransaction {
+            val dao=db.notesDao(); val old=requireNotNull(dao.note(id))
+            check(old.revision == revision)
+            dao.save(old.copy(pinned=!old.pinned,updated=maxOf(now,old.updated),revision=revision+1))
+        }
+    }
+    suspend fun deleteNote(id: String,revision: Int) {
+        val db=database()
+        db.withTransaction {
+            val dao=db.notesDao(); val old=dao.note(id) ?: return@withTransaction
+            check(old.revision == revision); dao.delete(id)
+            val draft=dao.draft()?.let { Json.decodeFromString<PrivateSafetyNote>(it.content) }
+            if(draft?.id == id) dao.clearDraft()
+        }
     }
 }

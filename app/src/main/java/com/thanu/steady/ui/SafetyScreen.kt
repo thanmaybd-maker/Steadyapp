@@ -3,6 +3,7 @@ package com.thanu.steady.ui
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import com.thanu.steady.R
 import com.thanu.steady.platform.DialerAdapter
@@ -11,12 +12,23 @@ import com.thanu.steady.platform.DialerAdapter
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var failedDial by remember { mutableStateOf(false) }
+    var failedSms by remember { mutableStateOf(false) }
+    var masked by remember { mutableStateOf(true) }
+    val notesModel: SafetyNotesViewModel = androidx.lifecycle.viewmodel.compose.viewModel(key="private_extra_notes",factory=viewModel.notesFactory())
+    val lifecycle=LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer=androidx.lifecycle.LifecycleEventObserver { _,event -> if(event == androidx.lifecycle.Lifecycle.Event.ON_STOP) { masked=true; notesModel.closeEditor() } }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     ExpandedPage {
         PublicSafetyPanel(country)
         SectionCard(R.string.open_private_plan) {
             Text(stringResource(R.string.private_safety_device_only))
+            ToggleRow(R.string.mask_private_content,masked) { masked=it; if(it) notesModel.closeEditor() }
             state.errorMessage?.let { Text(stringResource(it),color=MaterialTheme.colorScheme.error) }
             if (state.isLoading) CircularProgressIndicator()
+            else if(masked) Text(stringResource(R.string.private_content_masked))
             else {
                 if (state.errorMessage == R.string.private_plan_load_failed) SecondaryAction(R.string.retry,onClick=viewModel::loadPlan)
                 else {
@@ -52,9 +64,11 @@ import com.thanu.steady.platform.DialerAdapter
                         } else {
                             Text(contact.displayName); Text(contact.phone); contact.note?.let { Text(it) }
                             SecondaryAction(R.string.open_contact_dialer) { failedDial=!DialerAdapter(context).openDialer(contact.phone) }
+                            SecondaryAction(R.string.open_contact_sms) { failedSms=!DialerAdapter(context).openSmsComposer(contact.phone) }
                         }
                     }
                     if (failedDial) Text(stringResource(R.string.dialer_unavailable),color=MaterialTheme.colorScheme.error)
+                    if (failedSms) Text(stringResource(R.string.sms_composer_unavailable),color=MaterialTheme.colorScheme.error)
                     if(state.isEditing) {
                         SecondaryAction(R.string.mark_reviewed,!state.busy,onClick=viewModel::reviewed)
                         PrimaryAction(R.string.save_action,!state.busy,onClick=viewModel::savePlan)
@@ -64,6 +78,7 @@ import com.thanu.steady.platform.DialerAdapter
                 }
             }
         }
+        SafetyNotesPanel(notesModel,masked,country)
     }
 }
 

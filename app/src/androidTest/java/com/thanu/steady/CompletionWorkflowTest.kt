@@ -31,7 +31,7 @@ class CompletionWorkflowTest {
             .addMigrations(SteadyDatabase.MIGRATION_1_2,SteadyDatabase.MIGRATION_2_3,EXPANDED_MIGRATION_3_4,PERSONALIZATION_MIGRATION_4_5).build().also(open::add)
     }
     private fun safe(name: String): PrivateSafetyDatabase = Room.databaseBuilder(context,PrivateSafetyDatabase::class.java,name)
-        .openHelperFactory(SupportOpenHelperFactory(key.copyOf())).addMigrations(SAFETY_MIGRATION_1_2).build().also(open::add)
+        .openHelperFactory(SupportOpenHelperFactory(key.copyOf())).addMigrations(SAFETY_MIGRATION_1_2,SAFETY_MIGRATION_2_3).build().also(open::add)
     @After fun cleanup() { open.forEach { it.close() }; names.forEach { context.deleteDatabase(it) }; key.fill(0) }
 
     @Test fun programmeNotesSetsEffortAndRestAreDurableAndStaleSafe() = runBlocking {
@@ -103,7 +103,7 @@ class CompletionWorkflowTest {
         var repository = PrivateSafetyRepository({ safety },{ organiser })
         val draft = SafetyPlan(copingSteps = "Synthetic private draft",updatedAt = clock.instant())
         repository.saveDraft(draft)
-        assertEquals(2,safety.openHelper.readableDatabase.version)
+        assertEquals(3,safety.openHelper.readableDatabase.version)
         safety.close(); safety = safe(name); repository = PrivateSafetyRepository({ safety },{ organiser })
         assertTrue(repository.loadDraft()?.copingSteps == draft.copingSteps)
         assertFalse(PortableCodec.encode(RecoveryRepository { organiser }.snapshot()).contains(draft.copingSteps))

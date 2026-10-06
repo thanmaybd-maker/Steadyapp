@@ -31,7 +31,7 @@ class AppContainer(private val context: Context) {
             System.loadLibrary("sqlcipher")
             return Room.databaseBuilder(context, com.thanu.steady.data.PrivateSafetyDatabase::class.java, "steady_safety.db")
                 .openHelperFactory(SupportOpenHelperFactory(privateKeyManager.getOrGenerateDatabasePassphrase()))
-                .addMigrations(com.thanu.steady.data.SAFETY_MIGRATION_1_2)
+                .addMigrations(com.thanu.steady.data.SAFETY_MIGRATION_1_2,com.thanu.steady.data.SAFETY_MIGRATION_2_3)
                 .build().also { openSafetyDatabase = it }
         }
     val privateSafetyRepository by lazy { com.thanu.steady.data.PrivateSafetyRepository({ safetyDatabase }, { database }) }

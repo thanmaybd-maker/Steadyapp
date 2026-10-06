@@ -19,6 +19,11 @@ class SafetyViewModel(private val repository: PrivateSafetyRepository, private v
     private var saved = SafetyPlan()
     private var draftJob: Job? = null
     private var draftVersion = 0
+    fun notesFactory() = object : androidx.lifecycle.ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            @Suppress("UNCHECKED_CAST") return SafetyNotesViewModel(repository,clock) as T
+        }
+    }
     init { loadPlan() }
     fun loadPlan() {
         if (_uiState.value.busy || _uiState.value.isEditing) return
