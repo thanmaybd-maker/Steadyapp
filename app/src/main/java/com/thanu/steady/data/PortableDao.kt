@@ -5,6 +5,22 @@ import androidx.room.*
 /** Explicit table allowlist used only for portable recovery. */
 @Dao
 interface PortableDao {
+    @Query("""SELECT
+        (SELECT COUNT(*) FROM plan_item) AS tasks,
+        (SELECT COUNT(*) FROM habit_definition) AS habits,
+        (SELECT COUNT(*) FROM activity_session) AS sessions,
+        (SELECT COUNT(*) FROM food_idea) AS foods,
+        (SELECT COUNT(*) FROM reflection) AS reflections,
+        ((SELECT COUNT(*) FROM water_log)+(SELECT COUNT(*) FROM sleep_log)+(SELECT COUNT(*) FROM meal_log)+
+         (SELECT COUNT(*) FROM care_log)+(SELECT COUNT(*) FROM habit_log)) AS logs,
+        (SELECT COUNT(*) FROM capture) AS captures,
+        (SELECT COUNT(*) FROM session_note WHERE id NOT LIKE 'draft:%' AND id NOT LIKE 'rest:%'
+         AND id NOT LIKE 'delivery:%' AND id NOT LIKE 'program:%' AND id NOT LIKE 'ambient:%'
+         AND id NOT LIKE 'study-block%' AND id NOT LIKE 'recipe-context:%' AND id NOT LIKE 'meal-adoption:%'
+         AND id NOT LIKE 'legacy-og:%') AS notes,
+        ((SELECT COUNT(*) FROM activity_observation)+(SELECT COUNT(*) FROM route_point)+(SELECT COUNT(*) FROM energy_estimate)) AS motion,
+        ((SELECT COUNT(*) FROM daily_plans)+(SELECT COUNT(*) FROM weekly_review)+(SELECT COUNT(*) FROM timer_session)) AS legacy
+    """) suspend fun recordCounts(): OrganiserRecordCounts
     @Query("SELECT * FROM plan_item") suspend fun allTasks(): List<PlanItem>
     @Upsert suspend fun restoreTasks(values: List<PlanItem>)
     @Query("DELETE FROM plan_item") suspend fun clearTasks()

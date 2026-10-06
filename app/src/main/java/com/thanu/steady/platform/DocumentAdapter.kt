@@ -5,6 +5,8 @@ import android.net.Uri
 import java.io.OutputStreamWriter
 
 class DocumentAdapter(private val context: Context) {
+    fun copyMarkdownPreview(text: String): Boolean = MarkdownSharingAdapter(context).copyPreview(text)
+    fun shareMarkdownPreview(text: String): Boolean = MarkdownSharingAdapter(context).sharePreview(text)
     fun writeMarkdownToUri(uri: Uri, content: String): Boolean {
         return try {
             val output = context.contentResolver.openOutputStream(uri, "wt") ?: return false

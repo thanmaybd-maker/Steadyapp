@@ -89,8 +89,6 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     fun field(key: String, name: String, value: String) {
         if (value.length > 100_000 || key in _state.value.draftLoading || key in _state.value.draftLoadFailed) return
         draftVersions[key] = (draftVersions[key] ?: 0) + 1
-        draftLoads.remove(key)?.cancel()
-        _state.update { it.copy(draftLoading=it.draftLoading-key) }
         val values = (_drafts.value[key] ?: emptyMap()) + (name to value)
         _drafts.update { it + (key to values) }
         draftJobs[key]?.cancel()
@@ -103,7 +101,8 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     }
     fun clearDraft(key: String) {
         draftVersions[key] = (draftVersions[key] ?: 0) + 1
-        _state.update { it.copy(draftLoadFailed=it.draftLoadFailed-key) }
+        draftLoads.remove(key)?.cancel()
+        _state.update { it.copy(draftLoading=it.draftLoading-key,draftLoadFailed=it.draftLoadFailed-key) }
         draftJobs.remove(key)?.cancel()
         viewModelScope.launch {
             try { withContext(Dispatchers.IO) { repository.deleteNote("draft:$key") }; _drafts.update { it - key } }

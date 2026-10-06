@@ -45,7 +45,8 @@ data class SettingsUiState(
     val legacyCounts: List<Int>? = null,
     val legacyZone: String = "",
     val legacyRange: String = "",
-    val legacyResult: List<Int>? = null
+    val legacyResult: List<Int>? = null,
+    val recordCounts: com.thanu.steady.data.OrganiserRecordCounts? = null
 )
 
 class SettingsViewModel(
@@ -67,6 +68,17 @@ class SettingsViewModel(
     private var preparedRestore: RecoverySnapshot? = null
     private var backupSnapshot: RecoverySnapshot? = null
     private var preparedLegacy: com.thanu.steady.data.LegacyOgImport? = null
+    fun refreshRecordCounts() = work(R.string.record_counts_failed) {
+        val counts=repository.recordCounts(); _uiState.update { it.copy(recordCounts=counts) }
+    }
+    fun copyMarkdownPreview() {
+        val preview=_uiState.value.markdownPreview ?: return
+        status(if(documentAdapter.copyMarkdownPreview(preview)) R.string.markdown_copied else R.string.markdown_copy_failed)
+    }
+    fun shareMarkdownPreview() {
+        val preview=_uiState.value.markdownPreview ?: return
+        status(if(documentAdapter.shareMarkdownPreview(preview)) R.string.markdown_share_opened else R.string.markdown_share_failed)
+    }
     fun prepareLegacy(uri: Uri?) {
         if(uri == null) { status(R.string.file_cancelled); return }
         if(_uiState.value.isProcessing) return
@@ -84,8 +96,10 @@ class SettingsViewModel(
         val prepared = preparedLegacy ?: return
         work(R.string.legacy_og_failed) {
             val result = repository.importLegacy(prepared)
+            val counts = try { repository.recordCounts() } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { null }
             preparedLegacy=null
-            _uiState.update { it.copy(legacyPreview=null,legacyCounts=null,legacyResult=listOf(result.added,result.skipped),statusMessage=R.string.legacy_og_success) }
+            _uiState.update { it.copy(legacyPreview=null,legacyCounts=null,legacyResult=listOf(result.added,result.skipped),recordCounts=counts,statusMessage=R.string.legacy_og_success) }
         }
     }
     fun setExportEnd(value: String) { _uiState.update { it.copy(exportEnd=value.take(10),markdownPreview=null) } }

@@ -21,6 +21,7 @@ import com.thanu.steady.R
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, onImportCompleted: () -> Unit = {}) {
     val state by viewModel.uiState.collectAsState()
+    LaunchedEffect(Unit) { viewModel.refreshRecordCounts() }
     var passwordMode by remember { mutableStateOf<String?>(null) }
     var restoreUri by remember { mutableStateOf<Uri?>(null) }
     var password by remember { mutableStateOf("") }
@@ -64,6 +65,16 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
             Text(stringResource(R.string.processing))
         }
         state.legacyResult?.let { Text(stringResource(R.string.legacy_og_result,it[0],it[1])) }
+        SectionCard(R.string.organiser_counts_title) {
+            Text(stringResource(R.string.organiser_counts_scope))
+            state.recordCounts?.let { c ->
+                listOf(R.string.timeline_title to c.tasks,R.string.habits_title to c.habits,R.string.focus_tab to c.sessions,
+                    R.string.food_title to c.foods,R.string.reflection_title to c.reflections,R.string.organiser_logs to c.logs,
+                    R.string.capture_title to c.captures,R.string.organiser_notes to c.notes,R.string.organiser_motion to c.motion,
+                    R.string.organiser_legacy to c.legacy).forEach { (label,count) -> Text(stringResource(R.string.organiser_count_row,stringResource(label),count)) }
+            }
+            ActionButton(R.string.refresh_record_counts,enabled=!state.isProcessing,onClick=viewModel::refreshRecordCounts)
+        }
         Text(stringResource(R.string.markdown_title), style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(state.exportDate, viewModel::setExportDate,
             label = { Text(stringResource(R.string.export_date)) }, modifier = Modifier.fillMaxWidth(),
@@ -123,7 +134,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: (() -> Unit)? = null, o
         AlertDialog(
             onDismissRequest = viewModel::clearPreview,
             title = { Text(stringResource(R.string.exact_preview)) },
-            text = { Text(preview, Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) },
+            text = { Column(Modifier.heightIn(max=360.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.markdown_external_disclosure)); Text(preview)
+                state.statusMessage?.let { Text(stringResource(it),Modifier.semantics { liveRegion=LiveRegionMode.Polite }) }
+                ActionButton(R.string.copy_markdown_preview,enabled=!state.isProcessing,onClick=viewModel::copyMarkdownPreview)
+                ActionButton(R.string.share_markdown_preview,enabled=!state.isProcessing,onClick=viewModel::shareMarkdownPreview)
+            } },
             confirmButton = { ActionButton(R.string.choose_destination, onClick = {
                 exportLauncher.launch("${state.exportDate}.md")
             }) },
