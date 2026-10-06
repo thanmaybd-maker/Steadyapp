@@ -6,6 +6,11 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 class LogicalDayPolicyTest {
+    @Test fun boundaryUsesLocalTimeAcrossSpringDstChange() {
+        val zone = ZoneId.of("America/New_York")
+        val atBoundary = LocalDateTime.of(2026, 3, 8, 4, 0).atZone(zone)
+        assertEquals(java.time.LocalDate.of(2026, 3, 8), LogicalDayPolicy().getLogicalDay(atBoundary.toInstant(), zone))
+    }
     @Test
     fun testLogicalDayBeforeBoundary() {
         val policy = LogicalDayPolicy()

@@ -16,6 +16,12 @@ class AppContainer(private val context: Context) {
     val documentAdapter by lazy { com.thanu.steady.platform.DocumentAdapter(context) }
     val clock: java.time.Clock = java.time.Clock.systemUTC()
     val recoveryRepository by lazy { com.thanu.steady.data.RecoveryRepository { database } }
+    val preferencesRepository by lazy { com.thanu.steady.data.PreferencesRepository { database } }
+    @Volatile var isForeground = false
+    val timerRepository by lazy { com.thanu.steady.data.TimerRepository({ database }) {
+        com.thanu.steady.data.TimerTime(clock.instant(), android.os.SystemClock.elapsedRealtime(),
+            android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 0).toLong())
+    } }
     
     private var openDatabase: SteadyDatabase? = null
     val database: SteadyDatabase
@@ -26,7 +32,7 @@ class AppContainer(private val context: Context) {
         val factory = SupportOpenHelperFactory(passphrase)
         return Room.databaseBuilder(context, SteadyDatabase::class.java, "steady_encrypted.db")
             .openHelperFactory(factory)
-            .addMigrations(SteadyDatabase.MIGRATION_1_2)
+            .addMigrations(SteadyDatabase.MIGRATION_1_2, SteadyDatabase.MIGRATION_2_3)
             .build().also { openDatabase = it }
     }
 

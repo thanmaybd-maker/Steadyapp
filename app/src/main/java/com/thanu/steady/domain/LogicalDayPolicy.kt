@@ -12,9 +12,10 @@ class LogicalDayPolicy {
         boundaryMinutes: Int = 240 // 4 hours * 60 = 04:00 AM
     ): LocalDate {
         val zdt = ZonedDateTime.ofInstant(now, zoneId)
-        val boundaryTime = zdt.toLocalDate().atStartOfDay(zoneId).plusMinutes(boundaryMinutes.toLong())
+        require(boundaryMinutes in 0..1439)
+        val boundaryTime = java.time.LocalTime.of(boundaryMinutes / 60, boundaryMinutes % 60)
         
-        return if (zdt.isBefore(boundaryTime)) {
+        return if (zdt.toLocalTime().isBefore(boundaryTime)) {
             zdt.toLocalDate().minusDays(1)
         } else {
             zdt.toLocalDate()

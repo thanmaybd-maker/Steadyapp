@@ -1,5 +1,10 @@
 # Steady v0.1 release checklist
 
+Current results and remaining work: [Windows/Xiaomi checkpoint](docs/evidence/checkpoint-2026-10-06.md)
+and [future plans](FUTURE_PLANS.md). The baseline build, unit/lint/device suite,
+installation and launch now pass. The historical setup items below do not describe
+the current toolchain; complete milestone acceptance remains pending.
+
 Updated 6 October 2026. Earlier checked entries represented generated source, not
 passing acceptance. Every milestone remains open until its evidence passes.
 

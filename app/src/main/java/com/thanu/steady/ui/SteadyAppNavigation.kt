@@ -70,7 +70,8 @@ fun SteadyAppNavigation(appContainer: AppContainer) {
                 val breakViewModel: BreakViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return BreakViewModel({ appContainer.database }, appContainer.alarmAdapter) as T
+                            return BreakViewModel(appContainer.timerRepository, appContainer.alarmAdapter,
+                                appContainer.notificationAdapter, appContainer.preferencesRepository) as T
                         }
                     }
                 )

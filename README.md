@@ -5,6 +5,15 @@ and Settings. The architecture and acceptance contract are in `BLUEPRINT.md`.
 
 ## Current status
 
+**6 October 2026 update:** the existing checkpoint now builds; encrypted recovery
+and SAF flows are implemented, and a debug APK is installed and launches on the
+Xiaomi 14. Baseline `be3d20e` passed 10 unit tests, lint with no errors and 4 device
+tests. Latest timer/preferences changes are under verification. v0.1 acceptance is
+still incomplete. See [current evidence](docs/evidence/checkpoint-2026-10-06.md)
+and [the completion plan and future backlog](FUTURE_PLANS.md).
+
+### Historical setup audit (superseded)
+
 **Incomplete; no APK or verified personal-use release exists.** The imported source
 contains unimplemented recovery and file-picker flows, missing access controls,
 and timer/storage defects. The previous checked milestone list overstated progress.

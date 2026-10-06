@@ -12,11 +12,10 @@ import javax.crypto.spec.GCMParameterSpec
 import java.security.SecureRandom
 import android.util.Base64
 
-class DatabaseKeyManager(private val context: Context) {
+class DatabaseKeyManager(private val context: Context, private val alias: String = "SteadyDbKeyAlias") {
 
     companion object {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        private const val ALIAS = "SteadyDbKeyAlias"
         private const val DB_SECRET_FILE = "db_secret.enc"
         private const val DB_IV_FILE = "db_secret_iv.enc"
     }
@@ -26,20 +25,21 @@ class DatabaseKeyManager(private val context: Context) {
         val secretFile = File(context.filesDir, DB_SECRET_FILE)
         val ivFile = File(context.filesDir, DB_IV_FILE)
         val databaseExists = context.getDatabasePath("steady_encrypted.db").exists()
-        val hasMetadata = secretFile.exists() || ivFile.exists()
+        fun exists(file: File) = file.exists() || File(file.path + ".bak").exists()
+        val hasMetadata = exists(secretFile) || exists(ivFile)
         if (hasMetadata || databaseExists) {
-            check(secretFile.exists() && ivFile.exists() && keyStore.containsAlias(ALIAS)) {
+            check(exists(secretFile) && exists(ivFile) && keyStore.containsAlias(alias)) {
                 "Encrypted storage key is unavailable; existing records were preserved"
             }
-            val existingKey = keyStore.getKey(ALIAS, null) as SecretKey
-            return unwrapSecret(existingKey, secretFile.readBytes(), ivFile.readBytes())
+            val existingKey = keyStore.getKey(alias, null) as SecretKey
+            return unwrapSecret(existingKey, android.util.AtomicFile(secretFile).readFully(), android.util.AtomicFile(ivFile).readFully())
         }
         
-        if (!keyStore.containsAlias(ALIAS)) {
+        if (!keyStore.containsAlias(alias)) {
             generateKeystoreKey()
         }
         
-        val secretKey = keyStore.getKey(ALIAS, null) as SecretKey
+        val secretKey = keyStore.getKey(alias, null) as SecretKey
         
         
         if (secretFile.exists() && ivFile.exists()) {
@@ -68,13 +68,13 @@ class DatabaseKeyManager(private val context: Context) {
             if (backup.exists()) check(backup.delete())
         }
         val store = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        if (store.containsAlias(ALIAS)) store.deleteEntry(ALIAS)
+        if (store.containsAlias(alias)) store.deleteEntry(alias)
     }
 
     private fun generateKeystoreKey() {
         val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         val keyGenParameterSpec = KeyGenParameterSpec.Builder(
-            ALIAS,
+            alias,
             KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
         )
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)

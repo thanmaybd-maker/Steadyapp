@@ -24,4 +24,7 @@ interface TimerDao {
 
     @Query("SELECT * FROM timer_session ORDER BY startedAt DESC LIMIT 1")
     fun observeLatest(): kotlinx.coroutines.flow.Flow<TimerSessionEntity?>
+
+    @Query("SELECT * FROM timer_session WHERE state = 'RUNNING'")
+    suspend fun getRunning(): List<TimerSessionEntity>
 }
