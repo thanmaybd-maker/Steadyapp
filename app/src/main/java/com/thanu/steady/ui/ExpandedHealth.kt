@@ -18,8 +18,6 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
 
 @Composable fun ExpandedHealth(model: ExpandedViewModel, state: ExpandedUiState, onSafety: () -> Unit,
     quickAction: String? = null, onQuickActionHandled: () -> Unit = {}) {
-    val cadence by model.platformSensors.cadence.collectAsState()
-    val steps by model.platformSensors.steps.collectAsState()
     val period = state.period ?: return
     var editor by remember { mutableStateOf<String?>(null) }
     var food by remember { mutableStateOf<FoodIdeaRecord?>(null) }
@@ -42,7 +40,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
     }
     ExpandedPage {
         StateMessages(state)
-        CircadianWaveChart()
+        SectionCard(R.string.day_horizon_title) { TaskTimeline(period, {}, {}, includeActions = false) }
         if (period.profile.modules.contains("MOVEMENT")) SectionCard(R.string.movement_title) {
             Text(stringResource(R.string.manual_workout_description))
             PrimaryAction(R.string.start_workout) { editor = "workout" }
@@ -99,7 +97,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
                 SecondaryAction(R.string.save_current_focus, !state.busy) { model.transition(ActivityState.STOPPED) }
                 SecondaryAction(R.string.discard_session, !state.busy) { model.transition(ActivityState.DISCARDED) }
             }
-            MotionStudioCard(cadence = cadence, steps = steps)
+            if (period.observations.isEmpty()) Text(stringResource(R.string.motion_unavailable))
             period.sessions.filter { it.type == "WORKOUT" && it.state in setOf("STOPPED", "COMPLETED") && it.activeMillis > 0 }.forEach { session ->
                 Text(session.title.ifBlank { stringResource(workoutModes.firstOrNull { it.first == session.kind }?.second ?: R.string.custom_mode) })
                 Text(stringResource(R.string.actual_seconds, session.activeMillis / 1000))
@@ -110,8 +108,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
         }
         if (period.profile.modules.contains("WATER")) SectionCard(R.string.water_title) {
             val totalMl = period.water.sumOf { it.millilitres.toLong() }
-            val targetMl = period.profile.waterTargetMl ?: 3000
-            HydrationCadenceRing(targetLiters = targetMl / 1000f, currentLiters = totalMl / 1000f) { water = null; editor = "water" }
+            AnimatedWaterFill(totalMl, period.profile.waterTargetMl, period.profile.waterUnit, period.profile.reducedMotion)
             PrimaryAction(R.string.log_water) { water = null; editor = "water" }
             com.thanu.steady.domain.PersonalizationRules.waterQuantities(period.profile.waterQuickMl).forEach { ml ->
                 androidx.compose.material3.OutlinedButton(onClick = {
@@ -143,7 +140,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
             }
         }
         if (period.profile.modules.contains("FOOD")) SectionCard(R.string.food_title) {
-            CognitiveNutritionCard()
+            CognitiveNutritionCard(period)
             Text(stringResource(R.string.food_filter_disclosure))
             PrimaryAction(R.string.add_food) { food = null; editor = "food" }
             val avoid = period.preferences.avoidFoods.split(',').map { it.trim().lowercase(java.util.Locale.ROOT) }.filter(String::isNotBlank)

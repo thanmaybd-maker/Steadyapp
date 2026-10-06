@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activity_rings_description">Progress rings. Values and supporting records follow below.</string>
+    <string name="daily_momentum">Daily momentum</string>
+    <string name="water_target_summary">Target: %1$s</string>
+    <string name="habit_progress_description">%1$s: %2$s of %3$s %4$s</string>
+    <string name="habit_day_dot">%1$s · %2$s</string>
+    <string name="habit_week_preview">Last seven days</string>
+    <string name="habit_history_loading">Loading saved habit history…</string>
+    <string name="habit_history_load_failed">Habit history could not be loaded. Your records are unchanged.</string>
+    <string name="day_horizon_title">Day horizon</string>
+    <string name="recorded_meals_title">Meals recorded</string>
+    <string name="recorded_meals_count">%1$d meals recorded in this period</string>
+    <string name="nutrition_optional_notice">Meal notes are your own entries. Nutrition values are shown only when recorded.</string>
+    <string name="motion_unavailable">Movement observations unavailable. Manual workouts remain available below.</string>
+    <string name="review_previous">Previous period</string>
+    <string name="review_next">Next period</string>
+    <string name="review_view_month">View month</string>
+    <string name="review_view_week">View week</string>
+</resources>

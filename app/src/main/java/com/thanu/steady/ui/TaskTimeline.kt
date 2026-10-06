@@ -20,7 +20,7 @@ import java.time.format.DateTimeFormatter
 private data class TimelineMark(val title: String,val start: Long,val end: Long,val recorded: Boolean,val lane: Int,val sessionType: String? = null)
 
 /** A graph of actual records/plans only; the labelled list remains independently operable. */
-@Composable fun TaskTimeline(period: PeriodSnapshot,onFocus: () -> Unit,onHealth: () -> Unit) {
+@Composable fun TaskTimeline(period: PeriodSnapshot,onFocus: () -> Unit,onHealth: () -> Unit, includeActions: Boolean = true) {
     val day = period.days.firstOrNull { it.day == period.end.toString() }
     val zone = ZoneId.of(day?.zone ?: period.preferences.zoneId)
     val boundary = day?.boundary ?: period.preferences.boundaryMinutes
@@ -73,7 +73,7 @@ private data class TimelineMark(val title: String,val start: Long,val end: Long,
             Instant.ofEpochMilli(mark.start).atZone(zone).format(format),Instant.ofEpochMilli(mark.end).atZone(zone).format(format),
             stringResource(if(mark.recorded) R.string.recorded_segment else R.string.planned_segment)))
         if(overlaps > 0) Text(stringResource(R.string.timeline_overlap,overlaps+1))
-        if(mark.recorded) {
+        if(mark.recorded && includeActions) {
             SecondaryAction(if(mark.sessionType == "WORKOUT") R.string.open_health else R.string.open_focus,
                 onClick = if(mark.sessionType == "WORKOUT") onHealth else onFocus)
         }

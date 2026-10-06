@@ -124,4 +124,28 @@ class AccessibleJourneysTest {
         compose.waitUntil(10000) { model.state.value.period?.profile?.waterQuickMl == "125,375" && !model.state.value.busy }
         runBlocking(Dispatchers.IO) { assertEquals("125,375",repository.profile().waterQuickMl) }
     }
+    @Test fun kineticWaterShortcutAndUndoChangeStoredServings() = waterJourney("KINETIC", "LIGHT", 1f)
+    @Test fun daybookDarkDoubleTextKeepsWaterAndUndoReachable() = waterJourney("DAYBOOK", "DARK", 2f)
+
+    private fun waterJourney(palette: String, theme: String, textScale: Float) {
+        runBlocking(Dispatchers.IO) { repository.saveProfile(ExpandedProfile(onboarded = true,
+            palette = palette, theme = theme, textScale = textScale, reducedMotion = true,
+            waterTargetMl = 1000, waterQuickMl = "250")) }
+        compose.setContent {
+            val state by model.state.collectAsState()
+            state.period?.let { period -> SteadyTheme(period.profile) { ExpandedHealth(model, state, {}) } }
+        }
+        compose.waitUntil(10000) { model.state.value.period?.profile?.waterTargetMl == 1000 }
+        val quickLabel = compose.activity.getString(R.string.quick_water, compose.activity.getString(R.string.water_serving, 250))
+        compose.onNode(hasText(quickLabel) and hasClickAction()).performScrollTo().assertIsDisplayed().performClick()
+        compose.waitUntil(10000) { model.state.value.period?.water?.sumOf { it.millilitres } == 250 && !model.state.value.busy }
+        runBlocking(Dispatchers.IO) {
+            assertEquals(250, repository.snapshot(LocalDate.parse("2026-01-05"), LocalDate.parse("2026-01-05")).water.sumOf { it.millilitres })
+        }
+        button(R.string.undo_water_log).performScrollTo().assertIsDisplayed().performClick()
+        compose.waitUntil(10000) { model.state.value.period?.water?.isEmpty() == true && !model.state.value.busy }
+        runBlocking(Dispatchers.IO) {
+            assertTrue(repository.snapshot(LocalDate.parse("2026-01-05"), LocalDate.parse("2026-01-05")).water.isEmpty())
+        }
+    }
 }

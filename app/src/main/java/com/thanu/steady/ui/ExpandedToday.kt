@@ -108,6 +108,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
                 if (occurrences.isEmpty()) Text(stringResource(R.string.empty_habits))
                 occurrences.forEach { occurrence -> versions[occurrence.versionId]?.let { version ->
                     Text(version.title, style = MaterialTheme.typography.titleMedium)
+                    HabitProgressPetal(version.title, occurrence.quantity, version.target, version.unit, period.profile.reducedMotion)
                     Text(stringResource(R.string.habit_quantity, occurrence.quantity, version.target, version.unit))
                     Text(stringResource(stateLabel(occurrence.state)))
                     PrimaryAction(if (occurrence.state == "COMPLETED") R.string.undo_complete else R.string.log_habit, !state.busy) {

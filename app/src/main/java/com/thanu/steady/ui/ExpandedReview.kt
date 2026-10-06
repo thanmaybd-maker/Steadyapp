@@ -31,18 +31,17 @@ import java.time.LocalDate
         StateMessages(state)
         SectionCard(R.string.review_period) {
             androidx.compose.foundation.layout.Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween) {
-                Text(stringResource(R.string.review_range, period.start.toString(), period.end.toString()), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = androidx.compose.ui.graphics.Color(0xFF4648D4))
-                Text(mode, style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.Gray)
+                Text(stringResource(R.string.review_range, period.start.toString(), period.end.toString()), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
             androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
             androidx.compose.foundation.layout.Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly) {
-                androidx.compose.material3.TextButton(onClick = { select(if (mode == "MONTH") period.end.minusMonths(1) else period.end.minusWeeks(1)) }) { Text("< Prev") }
-                androidx.compose.material3.TextButton(onClick = {
+                androidx.compose.material3.TextButton(modifier = androidx.compose.ui.Modifier.heightIn(min = 56.dp), onClick = { select(if (mode == "MONTH") period.end.minusMonths(1) else period.end.minusWeeks(1)) }) { Text(stringResource(R.string.review_previous)) }
+                androidx.compose.material3.TextButton(modifier = androidx.compose.ui.Modifier.heightIn(min = 56.dp), onClick = {
                     mode = if (mode == "WEEK") "MONTH" else "WEEK"
                     val end = LocalDate.parse(endText)
                     model.reload(if (mode == "MONTH") end.withDayOfMonth(1) else end.minusDays(6), end)
-                }) { Text(if (mode == "WEEK") "View Month" else "View Week") }
-                androidx.compose.material3.TextButton(onClick = { select(if (mode == "MONTH") period.end.plusMonths(1) else period.end.plusWeeks(1)) }) { Text("Next >") }
+                }) { Text(stringResource(if (mode == "WEEK") R.string.review_view_month else R.string.review_view_week)) }
+                androidx.compose.material3.TextButton(modifier = androidx.compose.ui.Modifier.heightIn(min = 56.dp), onClick = { select(if (mode == "MONTH") period.end.plusMonths(1) else period.end.plusWeeks(1)) }) { Text(stringResource(R.string.review_next)) }
             }
             PrimaryAction(R.string.current_period) { model.action({ endText = model.repository.logicalDay().toString() }, success = null,
                 after = { select(LocalDate.parse(endText)) }) }
@@ -78,8 +77,7 @@ import java.time.LocalDate
                         val past = state.logicalToday?.let { date < it } ?: false
                         val dayMode = period.days.firstOrNull { it.day == date.toString() }?.mode
                         val suppressed = dayMode == "PAUSED" || dayMode == "MINIMUM" && !version.essential
-                        val status = if (!due || suppressed && (occurrence == null || occurrence.state == "PENDING")) "NOT_DUE" else if (occurrence == null) { if(past) "MISSING" else "PENDING" }
-                            else if (occurrence.state == "PENDING" && past) "MISSING" else occurrence.state
+                        val status = com.thanu.steady.domain.ChartRules.habitStatus(due, suppressed, occurrence?.state, past)
                         val label = stringResource(R.string.habit_history_row, date.toString(), version.title, stringResource(stateLabel(status)))
                         androidx.compose.material3.OutlinedButton(onClick = { select(date); details = true },modifier = androidx.compose.ui.Modifier
                             .fillMaxWidth().heightIn(min = 56.dp)) { Text(label) }

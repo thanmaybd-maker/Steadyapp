@@ -20,14 +20,14 @@ catalog. Dependency upgrade requires its own encrypted migration/native/device c
 
 ## Inventory and licences
 
-[Runtime inventory](runtime-inventory.csv) records 82 resolved artifacts and their
+[Runtime inventory](runtime-inventory.csv) records 83 resolved artifacts and their
 SHA-256 artifact/POM hashes. Regenerate with:
 
 ```powershell
 .\gradlew.bat :app:writeRuntimeInventory -I scripts/runtime-inventory.init.gradle --no-daemon
 ```
 
-Eighty POMs declare Apache 2.0. Two need additional source provenance:
+Eighty-one POMs declare Apache 2.0. Two need additional source provenance:
 
 - Guava ListenableFuture 1.0 inherits its parent; its tagged
   [source notice](https://github.com/google/guava/blob/v26.0/guava/src/com/google/common/util/concurrent/ListenableFuture.java)

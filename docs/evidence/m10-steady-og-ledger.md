@@ -21,8 +21,8 @@ The latest owner direction includes OG cards, water/habit animations and graph i
 | OG-13 | Current/best consistency summary | domain/HabitRules;ui/ExpandedToday.kt;ui/ExpandedReview.kt | Pending source/wiring/acceptance audit |
 | OG-14 | Seven-day visual history | ui/ExpandedReview.kt;data/HabitOccurrence | Pending source/wiring/acceptance audit |
 | OG-15 | Water/focus/pause/movement mini-summary matrix | ui/ExpandedToday.kt;ui/DashboardMetrics.kt;ui/ExpandedReview.kt | Pending source/wiring/acceptance audit |
-| OG-16 | Quick serving addition and target progress | ui/ExpandedHealth.kt;data/WaterLog;ui/DashboardSettingsEditor.kt | Pending source/wiring/acceptance audit |
-| OG-17 | Three animated concentric progress channels and legends | ui/ExpandedComponents.kt:MetricRing;ui/DashboardMetrics.kt;ui/ExpandedFocus.kt:FocusRings | Pending source/wiring/acceptance audit |
+| OG-16 | Quick serving addition and target progress | ui/ExpandedHealth.kt;data/WaterLog;ui/DashboardSettingsEditor.kt | Implemented; save/undo verified in both themes, including 2x text; see m10-ui.md |
+| OG-17 | Three animated concentric progress channels and legends | ui/RichProgress.kt:ConcentricSummary;ui/DashboardMetrics.kt;ui/ExpandedFocus.kt:FocusRings | Dashboard implemented; host guards and QA regression pass; graphical inspection and Focus correction pending |
 | OG-18 | Calories/steps/active-time channels and goal values | data/ActivityObservation;data/EnergyEstimate;data/ExpandedProfile | Pending source/wiring/acceptance audit |
 | OG-19 | Live sensor/elevation/calorie-rate ticker | platform/PlatformSensors.kt;ui/ExpandedHealthWidgets.kt | Pending source/wiring/acceptance audit |
 | OG-20 | Day curve and colored event markers | ui/TaskTimeline.kt;ui/ExpandedHealthWidgets.kt | Pending source/wiring/acceptance audit |

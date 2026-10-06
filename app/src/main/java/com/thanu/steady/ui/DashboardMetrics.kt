@@ -14,6 +14,17 @@ fun metricLabel(key: String): Int = when(key) {
     stringResource(R.string.water_fluid_ounces,ml / 29.5735295625,ml) else stringResource(R.string.water_serving,ml)
 
 @Composable fun DashboardMetrics(period: PeriodSnapshot, onFocus: () -> Unit, onHealth: () -> Unit, onHabits: () -> Unit) {
+    val due = period.occurrences.filter { it.state != "SKIPPED" }
+    val quantities = period.profile.ringMetrics.split(',').map { key -> when (key) {
+        "FOCUS" -> focusMillis(period) / 60_000.0 to period.profile.focusTargetMinutes?.toDouble()
+        "HABITS" -> due.count { it.state == "COMPLETED" }.toDouble() to due.size.takeIf { it > 0 }?.toDouble()
+        "WATER" -> period.water.sumOf { it.millilitres.toLong() }.toDouble() to period.profile.waterTargetMl?.toDouble()
+        "STEPS" -> period.observations.filter { it.steps != null && it.source == "PHONE_STEP_COUNTER" }
+            .takeIf { it.isNotEmpty() }?.sumOf { it.steps ?: 0 }?.toDouble() to period.profile.stepTarget?.toDouble()
+        "WORKOUTS" -> activityMillis(period, "WORKOUT") / 60_000.0 to null
+        else -> period.sleep.takeIf { it.isNotEmpty() }?.sumOf { it.wake - it.bedtime }?.div(60_000.0) to null
+    } }
+    ConcentricSummary(quantities, period.profile.reducedMotion)
     period.profile.ringMetrics.split(',').forEach { key ->
         when(key) {
             "STEPS" -> {
