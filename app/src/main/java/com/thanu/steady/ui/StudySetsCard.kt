@@ -23,7 +23,7 @@ import com.thanu.steady.data.Capture
                 val value by transition.animateFloat(0.6f, 1f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "current-set-pulse")
                 value
             }
-            Text(stringResource(R.string.current_set_badge), style = MaterialTheme.typography.labelLarge,
+            Text(stringResource(if(session.state == "RUNNING") R.string.current_set_badge else stateLabel(session.state)), style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.graphicsLayer { this.alpha = alpha })
             Text(session.title, style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.actual_seconds, state.activeMillis / 1000))

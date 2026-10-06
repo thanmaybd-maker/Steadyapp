@@ -25,6 +25,7 @@ import java.time.LocalDate
     var waterEditor by remember { mutableStateOf<WaterLog?>(null) }
     var sleepEditor by remember { mutableStateOf<SleepLog?>(null) }
     var habitEditor by remember { mutableStateOf<HabitOccurrence?>(null) }
+    var chartDay by remember(period.start, period.end) { mutableStateOf<LocalDate?>(null) }
     LaunchedEffect(Unit) { val end = period.end; model.reload(end.minusDays(6), end) }
     fun select(end: LocalDate) { endText = end.toString(); model.reload(if (mode == "MONTH") end.withDayOfMonth(1) else end.minusDays(6), end) }
     ExpandedPage {
@@ -65,6 +66,7 @@ import java.time.LocalDate
             }
             PrimaryAction(R.string.supporting_records) { details = !details }
         }
+        if("FOCUS" in visibleCards) FocusRestChart(period) { chartDay = it }
         if("HABITS" in visibleCards) SectionCard(R.string.habit_history) {
             val dates = generateSequence(period.start) { it.plusDays(1) }.takeWhile { !it.isAfter(period.end) }.toList()
             if (period.habits.isEmpty()) Text(stringResource(R.string.empty_habits))
@@ -160,4 +162,24 @@ import java.time.LocalDate
         }
     }
     editor?.let { HistoryEditor(model, state, it, onSafety) { editor = null } }
+    chartDay?.let { day ->
+        androidx.compose.ui.window.Dialog(onDismissRequest = { chartDay = null }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+            DialogSurface { ExpandedPage {
+                SecondaryAction(R.string.safety_action) { chartDay = null; onSafety() }
+                SecondaryAction(R.string.close_action) { chartDay = null }
+                SectionCard(R.string.supporting_records) {
+                    Text(stringResource(R.string.selected_record_day, day.toString()))
+                    val entries = period.sessions.filter { it.type in setOf("FOCUS", "BREAK", "REST") && it.state != "DISCARDED" }
+                        .map { it to activityMillis(period.copy(start = day, end = day, sessions = listOf(it)), it.type) }.filter { it.second > 0 }
+                    if(entries.isEmpty()) Text(stringResource(R.string.focus_rest_no_records))
+                    entries.forEach { (session, millis) ->
+                        Text(session.title)
+                        Text(stringResource(if(session.type == "FOCUS") R.string.focus_day_minutes else R.string.rest_day_minutes, millis / 60_000.0))
+                        Text(stringResource(R.string.history_source, session.source))
+                        if(session.state in setOf("STOPPED", "COMPLETED")) SecondaryAction(R.string.edit_session) { chartDay = null; editor = session }
+                    }
+                }
+            } }
+        }
+    }
 }

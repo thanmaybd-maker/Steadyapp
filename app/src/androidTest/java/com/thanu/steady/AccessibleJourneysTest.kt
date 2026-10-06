@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import com.thanu.steady.data.*
@@ -182,6 +183,66 @@ class AccessibleJourneysTest {
             val event = db.expandedDao().interruptions(clock.millis(), clock.millis()).single()
             assertEquals("RETURNED", event.outcome); assertEquals(0, event.pauseSeconds)
         }
+    }
+
+    @Test fun recordedFocusRestBarsSelectExactDayAndFollowHistoryCorrections() {
+        val focusId = UUID.randomUUID().toString()
+        val breakId = UUID.randomUUID().toString()
+        runBlocking(Dispatchers.IO) {
+            repository.saveProfile(ExpandedProfile(onboarded = true, palette = "DAYBOOK", theme = "DARK", textScale = 2f, reducedMotion = true))
+            listOf(focusId to "FOCUS", breakId to "BREAK").forEach { (id, type) ->
+                val start = clock.millis() + if(type == "BREAK") 120_000 else 0
+                val millis = if(type == "FOCUS") 120_000L else 60_000L
+                db.expandedDao().save(ActivitySession(id, type, type, "Synthetic $type", state = "STOPPED",
+                    activeMillis = millis, started = start, ended = start + millis, zone = "UTC", boundary = 0, updated = start))
+                db.expandedDao().save(ActivitySegment(UUID.randomUUID().toString(), id, start, start + millis, 0, millis, millis, "UTC", 0))
+            }
+        }
+        compose.setContent {
+            val state by model.state.collectAsState()
+            state.period?.let { SteadyTheme(it.profile) { ExpandedReview(model, state, {}) } }
+        }
+        compose.waitUntil(10000) { model.state.value.period?.start == LocalDate.parse("2025-12-30") }
+        val row = compose.activity.getString(R.string.focus_rest_day, "2026-01-05", 2.0, 1.0)
+        compose.onNodeWithText(row).performScrollTo().assertIsDisplayed().performClick()
+        compose.onAllNodes(hasText(label(R.string.supporting_records)) and hasClickAction()).onLast().performScrollTo().performClick()
+        compose.onNodeWithText("Synthetic FOCUS").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.rest_day_minutes, 1.0)).performScrollTo().assertIsDisplayed()
+        button(R.string.close_action).performScrollTo().performClick()
+        val activity = ActivityRepository({ db }, { ActivityClock(clock.millis(), 1000, 1) }, PreferencesRepository { db })
+        runBlocking(Dispatchers.IO) { activity.editHistory(focusId, 30_000, "Synthetic correction", null) }
+        compose.waitUntil(10000) { model.state.value.period?.let { focusRestRows(it).last().focusMillis == 30_000L } == true }
+        compose.onNodeWithText(compose.activity.getString(R.string.focus_rest_day, "2026-01-05", 0.5, 1.0)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription(label(R.string.focus_rest_graph_description)).performScrollTo()
+            .captureToImage().asAndroidBitmap().let { bitmap ->
+                java.io.File(compose.activity.filesDir, "qa-focus-rest-daybook.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            }
+        runBlocking(Dispatchers.IO) { activity.deleteHistory(breakId) }
+        compose.waitUntil(10000) { model.state.value.period?.let { focusRestRows(it).last().restMillis == 0L } == true }
+    }
+
+    @Test fun sevenDayHabitHistoryDistinguishesMissingPausedPartialAndActualCompletion() {
+        val habit = UUID.randomUUID().toString(); val version = UUID.randomUUID().toString()
+        runBlocking(Dispatchers.IO) {
+            db.expandedDao().save(HabitDefinition(habit, clock.millis()))
+            db.expandedDao().save(HabitVersion(version, habit, "2025-12-30", "Synthetic dated habit", "CHECKBOX", "check", 1.0,
+                anchorDay = "2025-12-30", created = clock.millis()))
+            db.expandedDao().save(DaySettings("2025-12-31", "PAUSED", zone = "UTC", boundary = 0, updated = clock.millis()))
+            listOf(Triple("2025-12-30", "COMPLETED", 1.0), Triple("2026-01-01", "SKIPPED", 0.0), Triple("2026-01-02", "PARTIAL", 0.5)).forEach { (day, status, quantity) ->
+                db.expandedDao().save(HabitOccurrence(UUID.randomUUID().toString(), habit, version, day, status, quantity, updated = clock.millis()))
+            }
+            repository.prepareDay(LocalDate.parse("2026-01-05"))
+        }
+        today(true)
+        compose.onNodeWithText(compose.activity.getString(R.string.habit_day_dot, "2026-01-03", label(R.string.missing)))
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.habit_day_dot, "2025-12-31", label(R.string.not_scheduled)))
+            .performScrollTo().assertIsDisplayed()
+        val occurrence = runBlocking(Dispatchers.IO) { repository.snapshot(LocalDate.parse("2026-01-05"), LocalDate.parse("2026-01-05")).occurrences.single() }
+        runBlocking(Dispatchers.IO) { repository.logHabit(occurrence.id, 1.0, UUID.randomUUID().toString()) }
+        val completed = compose.activity.getString(R.string.habit_day_dot, "2026-01-05", label(R.string.completed))
+        compose.waitUntil(10000) { compose.onAllNodesWithText(completed).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(completed).performScrollTo().assertIsDisplayed()
     }
 
     private fun waterJourney(palette: String, theme: String, textScale: Float) {

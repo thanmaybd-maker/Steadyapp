@@ -62,4 +62,23 @@
     <string name="pause_decisions_count">%1$d voluntary pause decisions recorded today</string>
     <string name="timer_elapsed_label">Elapsed</string>
     <string name="timer_remaining_label">Remaining</string>
+    <string name="focus_rest_chart_title">Focus &amp; rest</string>
+    <string name="focus_rest_totals">Recorded focus: %1$.1f min · rest: %2$.1f min</string>
+    <string name="focus_rest_graph_description">Paired focus and rest bars. Each date and exact value is available below.</string>
+    <string name="focus_rest_graph_legend">First bar: focus · second bar: recorded break/rest</string>
+    <string name="focus_rest_axis">Minutes · vertical range: 0–%1$.1f</string>
+    <string name="focus_ratio_absent">Focus share unavailable: no recorded focus or rest in this range.</string>
+    <string name="focus_ratio_value">Focus share of recorded focus + rest: %1$.1f%%</string>
+    <string name="focus_rest_day">%1$s · focus %2$.1f min · rest %3$.1f min</string>
+    <string name="selected_record_day">Supporting day: %1$s</string>
+    <string name="focus_rest_no_records">No recorded focus or rest segments for this day.</string>
+    <string name="focus_day_minutes">Focus on this logical day: %1$.1f min</string>
+    <string name="rest_day_minutes">Rest on this logical day: %1$.1f min</string>
+    <string name="history_source">Record source: %1$s</string>
+    <string name="habit_consistency_optional">Show optional recorded consistency</string>
+    <string name="habit_consistency_policy">This seven-day range only. Completed scheduled days count; not-due, skipped and paused days are excluded. Missing or partial past days end a run. Today can remain unfinished.</string>
+    <string name="habit_consistency_summary">Recorded run: %1$d eligible days · longest in this range: %2$d</string>
+    <string name="timeline_now">Now: %1$s · %2$s</string>
+    <string name="audio_decorative_bars">Decorative playback bars, not a measured waveform.</string>
+    <string name="og_source_notice">Steady OG source and scene provenance</string>
 </resources>

@@ -1,0 +1,20 @@
+Steady OG selective reuse
+
+The owner supplied the local "steady og" Android project and requested its
+behaviors, components and scenes in this personal build. The audited archive
+SHA-256 is d1ddd3bfa67b6e05884cfbb7126fb946f245df1e4f218c78342b3dbfe19ad290.
+
+Reused sources:
+- ui/break_timer/audio/AmbientSoundEngine.kt: mono sound-generation algorithms,
+  adapted into PcmSoundGenerator and the lifecycle-safe AudioSoundscapeEngine.
+- res/drawable/img_nature_portal.xml, img_rain_portal.xml,
+  img_campfire_portal.xml: offline vector scene assets.
+
+The supplied project contains no LICENSE or NOTICE. This records provenance
+and personal owner-authorized reuse; it does not invent an open-source licence
+or establish permission for third-party redistribution. See the repository's
+docs/steady-og-source-inventory.csv for exact source paths and SHA-256 hashes.
+
+Other OG workflows are adapted into the existing destination storage, timer,
+theme and platform contracts. No physiological defaults, fake sensor values,
+CDN scripts, provider keys or private Safety export behavior are inherited.

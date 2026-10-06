@@ -40,7 +40,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
     }
     ExpandedPage {
         StateMessages(state)
-        SectionCard(R.string.day_horizon_title) { TaskTimeline(period, {}, {}, includeActions = false) }
+        SectionCard(R.string.day_horizon_title) { TaskTimeline(period, {}, {}, model.repository.clock, includeActions = false) }
         if (period.profile.modules.contains("MOVEMENT")) SectionCard(R.string.movement_title) {
             Text(stringResource(R.string.manual_workout_description))
             PrimaryAction(R.string.start_workout) { editor = "workout" }

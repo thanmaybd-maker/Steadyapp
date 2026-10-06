@@ -40,9 +40,12 @@ Eighty-one POMs declare Apache 2.0. Two need additional source provenance:
 The packaged arm64 SQLCipher binary identifies OpenSSL 3.0.16 (11 February 2025).
 Its [tagged licence](https://github.com/openssl/openssl/blob/openssl-3.0.16/LICENSE.txt)
 is bundled alongside Apache 2.0, SQLCipher notices and the inventory in assets/licenses.
-Settings exposes these offline. No imported fonts, audio, exercise imagery or
-third-party UI artwork is currently shipped. Imported prototype references do not
-establish permission to reuse assets; OpenGym/Vital3D still require exact sources.
+Settings exposes these offline. The owner-supplied OG forest/rain/campfire vector
+scenes and procedural sound algorithms are now selectively reused; their source
+hashes/provenance and absent donor LICENSE are recorded in `steady-og-analysis.md`
+and `steady-og-source-inventory.csv`. Do not infer a redistribution licence from
+the owner's personal reuse request. No downloaded exercise imagery is shipped.
+OpenGym dataset/media rights and Vital3D identity still require separate review.
 
 AAR/JAR notice scanning found no additional top-level LICENSE/NOTICE/COPYRIGHT entries.
 This is an observed archive scan, not a claim that unnamed native dependencies are

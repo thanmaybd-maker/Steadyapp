@@ -77,7 +77,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
             }
             "TIMELINE" -> if ("PLAN" in period.profile.modules.split(',')) SectionCard(R.string.timeline_title) {
                 PrimaryAction(R.string.add_task) { editedTask = null; editor = "task" }
-                TaskTimeline(period.copy(tasks = visibleTasks),onFocus,onHealth)
+                TaskTimeline(period.copy(tasks = visibleTasks),onFocus,onHealth,model.repository.clock)
                 if (visibleTasks.isEmpty()) Text(stringResource(R.string.empty_tasks))
                 visibleTasks.sortedWith(compareBy<PlanItem> { item -> item.timeMinutes?.let { time -> Math.floorMod(time-item.boundary,1440) } ?: 1440 }.thenBy { it.position }).forEach { task ->
                     androidx.compose.animation.AnimatedVisibility(
@@ -105,6 +105,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
             }
             "HABITS" -> if ("HABITS" in period.profile.modules.split(',') && (mode != "PAUSED" || optionalShown)) SectionCard(R.string.habits_title) {
                 PrimaryAction(R.string.add_habit) { editedHabit = null; editor = "habit" }
+                HabitWeekHistory(model, state)
                 if (occurrences.isEmpty()) Text(stringResource(R.string.empty_habits))
                 occurrences.forEach { occurrence -> versions[occurrence.versionId]?.let { version ->
                     Text(version.title, style = MaterialTheme.typography.titleMedium)

@@ -31,7 +31,8 @@ import kotlinx.coroutines.withContext
                     "apache-2.0.txt" to R.string.apache_licence,
                     "sqlcipher-android.txt" to R.string.sqlcipher_android_notice,
                     "sqlcipher-community.txt" to R.string.sqlcipher_core_notice,
-                    "openssl-3.0.16.txt" to R.string.openssl_notice).forEach { (asset,label) ->
+                    "openssl-3.0.16.txt" to R.string.openssl_notice,
+                    "steady-og-source.txt" to R.string.og_source_notice).forEach { (asset,label) ->
                     SecondaryAction(label) { selected = asset }
                 }
             } else if(failed) {

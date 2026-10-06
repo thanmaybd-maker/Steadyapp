@@ -1,6 +1,7 @@
 package com.thanu.steady.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -46,6 +47,7 @@ import kotlin.math.sin
         PrimaryAction(if (playing) R.string.audio_stop else R.string.audio_play) {
             if (playing) engine.stop() else engine.start(scope)
         }
+        DecorativeSoundBars(playing, state.period?.profile?.reducedMotion ?: true)
         ChoiceList(settings.sound, AmbientSoundType.entries.map { it.name to it.title }) { value ->
             model.ambient { it.copy(sound = value) }
         }
@@ -86,6 +88,23 @@ import kotlin.math.sin
                 controls()
             }
         } }
+    }
+}
+
+@Composable private fun DecorativeSoundBars(playing: Boolean, reducedMotion: Boolean) {
+    val phase = if(!playing || reducedMotion) 0f else {
+        val transition = rememberInfiniteTransition(label = "sound-decoration")
+        val value by transition.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "sound-bars")
+        value
+    }
+    val color = if(playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    val description = stringResource(R.string.audio_decorative_bars)
+    Canvas(Modifier.fillMaxWidth().height(48.dp).semantics { contentDescription = description }) {
+        repeat(18) { index ->
+            val x = size.width * (index + 0.5f) / 18
+            val height = if(!playing) 6.dp.toPx() else size.height * (0.3f + 0.5f * kotlin.math.abs(sin(phase + index * 0.6f)))
+            drawLine(color, Offset(x, (size.height - height) / 2), Offset(x, (size.height + height) / 2), 5.dp.toPx(), StrokeCap.Round)
+        }
     }
 }
 

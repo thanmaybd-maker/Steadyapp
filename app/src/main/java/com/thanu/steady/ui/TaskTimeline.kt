@@ -3,7 +3,8 @@ package com.thanu.steady.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.animation.core.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
@@ -20,11 +21,20 @@ import java.time.format.DateTimeFormatter
 private data class TimelineMark(val title: String,val start: Long,val end: Long,val recorded: Boolean,val lane: Int,val sessionType: String? = null)
 
 /** A graph of actual records/plans only; the labelled list remains independently operable. */
-@Composable fun TaskTimeline(period: PeriodSnapshot,onFocus: () -> Unit,onHealth: () -> Unit, includeActions: Boolean = true) {
+@Composable fun TaskTimeline(period: PeriodSnapshot,onFocus: () -> Unit,onHealth: () -> Unit, clock: Clock, includeActions: Boolean = true) {
     val day = period.days.firstOrNull { it.day == period.end.toString() }
     val zone = ZoneId.of(day?.zone ?: period.preferences.zoneId)
     val boundary = day?.boundary ?: period.preferences.boundaryMinutes
     val range = ActivityTotals.dayBounds(period.end,zone,boundary)
+    val now by produceState(clock.millis(), clock) {
+        while(true) { value = clock.millis(); kotlinx.coroutines.delay(60_000) }
+    }
+    val marker = com.thanu.steady.domain.ReviewChartRules.marker(now, range)
+    val markerAlpha = if(period.profile.reducedMotion || marker == null) 1f else {
+        val transition = rememberInfiniteTransition(label = "horizon-now")
+        val value by transition.animateFloat(0.65f, 1f, infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "horizon-beacon")
+        value
+    }
     val sessions = period.sessions.associateBy { it.id }
     val source = period.tasks.filter { it.state != "ARCHIVED" && it.timeMinutes != null }.map { task ->
         val time = LocalTime.of(task.timeMinutes!!/60,task.timeMinutes%60)
@@ -44,7 +54,6 @@ private data class TimelineMark(val title: String,val start: Long,val end: Long,
         laneEnds[lane] = maxOf(start+1,end)
         mark.copy(start = start,end = end,lane = lane)
     }
-    if(marks.isEmpty()) return
     val planned = MaterialTheme.colorScheme.secondary
     val recorded = MaterialTheme.colorScheme.primary
     val axis = MaterialTheme.colorScheme.outline
@@ -54,6 +63,11 @@ private data class TimelineMark(val title: String,val start: Long,val end: Long,
         val duration = (range.end-range.start).toDouble()
         fun x(at: Long) = ((at-range.start)/duration*size.width).toFloat()
         drawLine(axis,Offset(0f,8.dp.toPx()),Offset(size.width,8.dp.toPx()),2.dp.toPx())
+        marker?.let { fraction ->
+            val x = fraction * size.width
+            drawLine(recorded.copy(alpha = markerAlpha), Offset(x,0f), Offset(x,size.height), 2.dp.toPx())
+            drawCircle(recorded, 5.dp.toPx(), Offset(x,8.dp.toPx()))
+        }
         marks.forEach { mark ->
             val y = (28+24*mark.lane).dp.toPx()
             if(mark.end == mark.start) drawCircle(if(mark.recorded) recorded else planned,4.dp.toPx(),Offset(x(mark.start),y))
@@ -66,6 +80,7 @@ private data class TimelineMark(val title: String,val start: Long,val end: Long,
         Text(Instant.ofEpochMilli(range.end).atZone(zone).format(format))
     }
     Text(stringResource(R.string.timeline_axis_zone,zone.id))
+    marker?.let { Text(stringResource(R.string.timeline_now, Instant.ofEpochMilli(now).atZone(zone).format(format), zone.id)) }
     Text(stringResource(R.string.timeline_linear_alternative))
     marks.forEach { mark ->
         val overlaps = marks.count { it !== mark && it.start < maxOf(mark.end,mark.start+1) && maxOf(it.end,it.start+1) > mark.start }
