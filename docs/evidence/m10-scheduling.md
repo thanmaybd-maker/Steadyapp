@@ -44,3 +44,24 @@ Delivery APK SHA-256: `dd64cf5954f724483c88075f004e19783766b92736dc084051b5181db
 Device: Xiaomi 14, API 36 / Android 16 build BP2A.250605.031.A3, HyperOS 3.0.304.0.WNCINXM. Keyguard still reports showing/Dozing. Unlocked screen/audio journeys and notification permission grant/deny/revoke, system cancellation/tap/quiet-hour scenarios remain pending. The owner APK has not been updated with this checkpoint.
 
 Next: finish and verify scheduler platform/UI edge cases, then food adoption, additional private Safety notes/grounding, strict legacy organiser import and isolated Gemini BYOK. The 76-row [coverage CSV](m10-steady-og-ledger.csv) records remaining work; no pending row is claimed complete.
+
+## Scheduler edge-case follow-up
+
+Base: 8be1000. Block editing now loads its linked plan even after the plan moves to another day; updating the block primer preserves the task's rescheduled date. A new encrypted persistence assertion verifies this.
+
+The first follow-up build failed only in the new test's cross-module nullable date expression; the test now uses explicit requireNotNull. Re-running the same five Gradle tasks returned:
+
+```text
+BUILD SUCCESSFUL in 6s
+117 actionable tasks: 8 executed, 109 up-to-date
+```
+
+Direct QA ran `RoutineSchedulingTest,StudyBlockPersistenceTest,AlarmCuePersistenceTest` after both QA APK updates returned Success. Notification permission was granted by shell only to `com.thanu.steady.qa` for the synthetic notification checks. Owner permission/data was unchanged.
+
+```text
+Time: 2.997
+OK (5 tests)
+```
+
+Real AlarmManager/PendingIntent and token checks cover rescheduling, global/per-block disable, quiet hours, Pause and deletion. Locked routine receive uses a provider that throws if opened; generic title and exactly-once notification are verified. An explicit synthetic activity broadcast exercises the actual locked activity receiver and confirms generic notification delivery. Manual screen/tap/authentication, denied/revoked notification and OEM idle/reboot scenarios remain pending.
+Follow-up APK SHA-256: `a45b61a4191c5b62bb6ffe79681f8d538ae2dc159011670f5ed136aa3f8aceb0`.

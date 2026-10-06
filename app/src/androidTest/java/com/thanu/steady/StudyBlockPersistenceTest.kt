@@ -41,6 +41,7 @@ class StudyBlockPersistenceTest {
         assertEquals("Synthetic renamed",db.expandedDao().task(plan.id)!!.title)
         val saved = repository().studyBlocks(day).single()
         repository().saveStudyBlock(saved.copy(primer = "Synthetic primer", reminder = true))
+        assertEquals(day.plusDays(1).toString(),db.expandedDao().task(plan.id)!!.day)
         assertTrue(runCatching { repository().saveStudyBlock(saved.copy(title = "Stale synthetic edit")) }.isFailure)
         repository().studyBlockSettings(StudyBlockSettings(reminders = true))
         val encoded = PortableCodec.encode(RecoveryRepository { db }.snapshot())

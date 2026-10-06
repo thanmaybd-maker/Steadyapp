@@ -146,6 +146,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
     suspend fun studyBlockSettings(): StudyBlockSettings = provider().expandedDao().note("study-block-settings")
         ?.let { Json.decodeFromString<StudyBlockSettings>(it.text) } ?: StudyBlockSettings()
     suspend fun studyBlockSettings(value: StudyBlockSettings) = saveNote(SessionNote("study-block-settings", null, Json.encodeToString(value), clock.millis()))
+    suspend fun studyBlockPlan(id: String): PlanItem? = provider().expandedDao().task(id)
     suspend fun saveStudyBlock(value: StudyBlockProposal) {
         value.validate()
         val db = provider()
@@ -154,7 +155,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
             val old = dao.note("study-block:${value.id}")?.let { Json.decodeFromString<StudyBlockProposal>(it.text).also(StudyBlockProposal::validate) }
             check(value.revision == (old?.revision ?: 0) && value.adoptedPlanId == old?.adoptedPlanId)
             old?.adoptedPlanId?.let { id -> dao.task(id)?.let { task ->
-                saveTask(task.copy(day = value.day, title = value.title, timeMinutes = value.minute,
+                saveTask(task.copy(title = value.title, timeMinutes = value.minute,
                     plannedSeconds = value.durationMinutes * 60L, category = value.category, notes = value.primer,
                     zone = value.zone, boundary = value.boundary))
             } }

@@ -17,10 +17,10 @@ import kotlinx.serialization.json.Json
 
 /** Alarm payloads contain only an opaque source identifier, date and scheduled instant. */
 class RoutineReminders(private val context: Context, private val provider: () -> SteadyDatabase, private val clock: Clock,
+    private val cues: AlarmCueStore = AlarmCueStore(context),
     private val privateAccess: () -> Boolean) {
     private val scheduling = Mutex()
     private val manager = context.getSystemService(AlarmManager::class.java)
-    private val cues = AlarmCueStore(context)
     private fun intent(slot: Int) = Intent(context,RoutineReminderReceiver::class.java).apply {
         action = "com.thanu.steady.ROUTINE_REMINDER"; data = Uri.Builder().scheme("steady").authority("routine").appendPath(slot.toString()).build()
     }
