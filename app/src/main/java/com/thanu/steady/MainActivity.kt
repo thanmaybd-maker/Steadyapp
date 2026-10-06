@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         
         appContainer = AppContainer(this)
         diagnosticViewModel = DiagnosticViewModel(appContainer.database)
-        diagnosticViewModel.runDiagnostic()
+        // diagnosticViewModel.runDiagnostic() // Removed canary write from normal startup
 
         setContent {
             MaterialTheme {

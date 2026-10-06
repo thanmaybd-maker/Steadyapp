@@ -34,7 +34,31 @@ class BreakViewModel(
     val uiState: StateFlow<BreakUiState> = _uiState.asStateFlow()
 
     init {
-        // In real app, load latest session from DB.
+        viewModelScope.launch {
+            try {
+                val latest = database.timerDao().getLatestSession()
+                if (latest != null) {
+                    val session = TimerSession(
+                        id = latest.id,
+                        logicalDay = latest.logicalDay,
+                        kind = latest.kind,
+                        durationMs = latest.durationMs,
+                        remainingMs = latest.remainingMs,
+                        state = latest.state,
+                        startedAt = latest.startedAt,
+                        targetWallTime = latest.targetWallTime,
+                        targetElapsedTime = latest.targetElapsedTime,
+                        bootMarker = latest.bootMarker,
+                        cueFlags = latest.cueFlags,
+                        completedAt = latest.completedAt,
+                        generation = latest.generation
+                    )
+                    _uiState.update { it.copy(session = session, displayRemainingMs = session.remainingMs) }
+                }
+            } catch (e: Exception) {
+                // Ignore DB error for UI fallback
+            }
+        }
         startTicker()
     }
 
@@ -118,7 +142,8 @@ class BreakViewModel(
                 
                 if (session.state == TimerState.RUNNING && session.targetElapsedTime != null) {
                     alarmAdapter.scheduleExactAlarm(session.targetElapsedTime, session.id, session.generation)
-                } else {
+                } else if (session.state != TimerState.COMPLETED) {
+                    // Do not cancel if COMPLETED, let the AlarmReceiver fire the notification
                     alarmAdapter.cancelAlarm(session.id)
                 }
             } catch (e: Exception) {

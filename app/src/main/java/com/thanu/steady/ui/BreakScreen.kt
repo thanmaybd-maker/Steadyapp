@@ -12,12 +12,40 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.thanu.steady.domain.TimerState
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+
 @Composable
 fun BreakScreen(viewModel: BreakViewModel) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (!isGranted) {
+                // permission denied, handled by UI state below
+            }
+        }
+    )
+    
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val status = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            if (status != PackageManager.PERMISSION_GRANTED) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
     
     val backgroundColor = if (state.isDimmed) Color.Black else MaterialTheme.colorScheme.background
-    val contentColor = if (state.isDimmed) Color.DarkGray else MaterialTheme.colorScheme.onBackground
+    // Ensure at least 7:1 contrast ratio against black for low vision accessibility
+    val contentColor = if (state.isDimmed) Color(0xFFCCCCCC) else MaterialTheme.colorScheme.onBackground
 
     Box(
         modifier = Modifier
@@ -100,7 +128,12 @@ fun BreakScreen(viewModel: BreakViewModel) {
                 Text(if (state.isDimmed) "Restore Brightness" else "Dim Screen (Eyes Closed)")
             }
             
-            if (state.permissionDenied) {
+            val isPermissionDenied = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            } else {
+                false
+            }
+            if (isPermissionDenied) {
                 Text(
                     text = "Notification permissions denied. Alarm will only play locally while app is open.",
                     color = MaterialTheme.colorScheme.error,

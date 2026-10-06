@@ -21,6 +21,7 @@ class AppContainer(private val context: Context) {
         val factory = SupportFactory(passphrase)
         Room.databaseBuilder(context, SteadyDatabase::class.java, "steady_encrypted.db")
             .openHelperFactory(factory)
+            .addMigrations(SteadyDatabase.MIGRATION_1_2)
             .build()
     }
 }
