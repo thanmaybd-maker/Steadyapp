@@ -1,0 +1,222 @@
+package com.thanu.steady.data
+
+import androidx.room.withTransaction
+import com.thanu.steady.domain.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import java.time.*
+import java.util.UUID
+
+data class PeriodSnapshot(val start: LocalDate, val end: LocalDate, val profile: ExpandedProfile,
+    val preferences: AppPreferences, val days: List<DaySettings>, val tasks: List<PlanItem>,
+    val habits: List<HabitDefinition>, val versions: List<HabitVersion>, val occurrences: List<HabitOccurrence>,
+    val sessions: List<ActivitySession>, val segments: List<ActivitySegment>, val active: List<ActivitySession>,
+    val subjects: List<Subject>, val water: List<WaterLog>, val sleep: List<SleepLog>, val foods: List<FoodIdeaRecord>,
+    val meals: List<MealLog>, val care: List<CareReminder>, val careLogs: List<CareLog>, val captures: List<Capture>,
+    val observations: List<ActivityObservation>, val reflection: Reflection?)
+
+class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: Clock,
+    private val preferences: PreferencesRepository) {
+    fun newId() = UUID.randomUUID().toString()
+    private fun stableId(key: String) = UUID.nameUUIDFromBytes(key.toByteArray(Charsets.UTF_8)).toString()
+    suspend fun logicalDay(): LocalDate = preferences.get().let {
+        LogicalDayPolicy().getLogicalDay(clock.instant(), ZoneId.of(it.zoneId), it.boundaryMinutes)
+    }
+    suspend fun profile() = provider().expandedDao().profile() ?: ExpandedProfile()
+    suspend fun saveProfile(value: ExpandedProfile) {
+        require(value.id == 1 && value.displayName.length <= 100 && value.country in setOf("IN", "OTHER"))
+        require(value.palette in setOf("KINETIC", "DAYBOOK") && value.theme in setOf("SYSTEM", "LIGHT", "DARK"))
+        require(value.textScale in 1f..2f && value.alertBudget in 0..5 && value.quietStart in 0..1439 && value.quietEnd in 0..1439)
+        require(value.waterTargetMl == null || value.waterTargetMl > 0)
+        require(value.weightKg == null || value.weightKg.isFinite() && value.weightKg in 1.0..1000.0)
+        require(value.focusTargetMinutes == null || value.focusTargetMinutes in 1..1440)
+        require(value.stepTarget == null || value.stepTarget > 0)
+        val cards = value.dashboard.split(',')
+        require(cards.distinct().size == cards.size && cards.all { it in setOf("NEXT", "RINGS", "TIMELINE", "HABITS", "CAPTURE", "FOOD") })
+        provider().expandedDao().save(value)
+    }
+    suspend fun prepareDay(day: LocalDate) {
+        val db = provider()
+        db.withTransaction {
+            val dao = db.expandedDao()
+            if (dao.day(day.toString()) == null) {
+                val p = db.preferencesDao().get() ?: AppPreferences()
+                val old = db.dailyPlanDao().getPlan(day)
+                dao.save(DaySettings(day.toString(), if (p.pauseEnabled) "PAUSED" else if (old?.mode == DayMode.MINIMUM) "MINIMUM" else "NORMAL",
+                    old?.nextAction ?: "", old?.zoneId?.id ?: p.zoneId, old?.boundaryMinutes ?: p.boundaryMinutes,
+                    old?.shutdownAt?.toEpochMilli(), clock.millis()))
+                old?.let { plan ->
+                    listOf("STUDY" to plan.studyTask, "BUILD" to plan.buildTask, "MOVEMENT" to plan.healthTask).forEachIndexed { order, (category, title) ->
+                        if (title.isNotBlank()) dao.save(PlanItem(stableId("legacy-plan|$day|$category"), day.toString(), title,
+                            notes = when(category) { "STUDY" -> plan.studyEvidence ?: ""; "BUILD" -> plan.buildEvidence ?: ""; else -> "" },
+                            category = category, position = order, essential = true, created = plan.createdAt.toEpochMilli(),
+                            updated = plan.updatedAt.toEpochMilli(), zone = plan.zoneId.id, boundary = plan.boundaryMinutes))
+                    }
+                }
+            }
+            dao.versionsForDay(day.toString()).forEach { version ->
+                val id = stableId("habit|${version.habitId}|$day")
+                if (dao.occurrence(id) == null && HabitRules.scheduled(day, LocalDate.parse(version.anchorDay), version.weekdays, version.everyDays))
+                    dao.save(HabitOccurrence(id, version.habitId, version.id, day.toString(), updated = clock.millis()))
+            }
+        }
+    }
+    suspend fun snapshot(start: LocalDate, end: LocalDate): PeriodSnapshot {
+        require(!end.isBefore(start) && java.time.temporal.ChronoUnit.DAYS.between(start, end) <= 366)
+        val db = provider()
+        return db.withTransaction {
+            val p = db.preferencesDao().get() ?: AppPreferences()
+            val profile = db.expandedDao().profile() ?: ExpandedProfile()
+            val bounds = ActivityTotals.dayBounds(start, ZoneId.of(p.zoneId), p.boundaryMinutes)
+            val stop = ActivityTotals.dayBounds(end, ZoneId.of(p.zoneId), p.boundaryMinutes).end - 1
+            val dao = db.expandedDao()
+            PeriodSnapshot(start, end, profile, p, dao.days(start.toString(), end.toString()),
+                dao.tasks(start.toString(), end.toString()), dao.habits(), dao.versionsForRange(start.toString(), end.toString()),
+                dao.occurrences(start.toString(), end.toString()), dao.sessions(bounds.start, stop),
+                dao.segmentsInRange(bounds.start, stop), dao.activeSessions(), dao.subjects(),
+                dao.water(start.toString(), end.toString()), dao.sleep(start.toString(), end.toString()), dao.foods(),
+                dao.meals(start.toString(), end.toString()), dao.care(), dao.careLogs(start.toString(), end.toString()),
+                dao.captures(), dao.observations(start.toString(), end.toString()), dao.reflection(start.toString(), end.toString()))
+        }
+    }
+    suspend fun observe(start: LocalDate, end: LocalDate): Flow<PeriodSnapshot> {
+        val p = preferences.get()
+        val begin = ActivityTotals.dayBounds(start, ZoneId.of(p.zoneId), p.boundaryMinutes).start
+        val stop = ActivityTotals.dayBounds(end, ZoneId.of(p.zoneId), p.boundaryMinutes).end - 1
+        return provider().expandedDao().observeChanges(start.toString(), end.toString(), begin, stop).map { snapshot(start, end) }
+    }
+    suspend fun setDay(day: LocalDate, mode: String? = null, next: String? = null, shutdown: Boolean = false) {
+        prepareDay(day)
+        val db = provider()
+        db.withTransaction {
+            val old = db.expandedDao().day(day.toString())!!
+            require(mode == null || mode in setOf("NORMAL", "MINIMUM", "PAUSED"))
+            require(next == null || next.length <= 10_000)
+            db.expandedDao().save(old.copy(mode = mode ?: old.mode, nextAction = next ?: old.nextAction,
+                shutdown = if (shutdown) clock.millis() else old.shutdown, updated = clock.millis()))
+        }
+    }
+    suspend fun saveTask(item: PlanItem) {
+        UUID.fromString(item.id); LocalDate.parse(item.day); ZoneId.of(item.zone)
+        require(item.title.isNotBlank() && item.title.length <= 500 && item.notes.length <= 100_000)
+        require(item.boundary in 0..1439 && item.priority in 0..2 && item.state in setOf("PENDING", "COMPLETED", "ARCHIVED"))
+        require(item.plannedSeconds == null || item.plannedSeconds in 1..86_400)
+        require(item.timeMinutes == null || item.timeMinutes in 0..1439)
+        val db = provider()
+        db.withTransaction {
+            require(item.subjectId == null || db.expandedDao().subject(item.subjectId) != null)
+            val existing = db.expandedDao().task(item.id)
+            db.expandedDao().save(item.copy(created = existing?.created ?: item.created, updated = clock.millis()))
+        }
+    }
+    suspend fun toggleTask(id: String) {
+        val db = provider()
+        db.withTransaction { val task = requireNotNull(db.expandedDao().task(id));
+            db.expandedDao().save(task.copy(state = if (task.state == "COMPLETED") "PENDING" else "COMPLETED", updated = clock.millis())) }
+    }
+    suspend fun deleteTask(id: String) = provider().expandedDao().deleteTask(id)
+    suspend fun saveHabit(version: HabitVersion) {
+        UUID.fromString(version.id); UUID.fromString(version.habitId)
+        LocalDate.parse(version.effectiveDay); LocalDate.parse(version.anchorDay)
+        require(version.title.isNotBlank() && version.title.length <= 500 && version.unit.length <= 30)
+        require(version.type in setOf("CHECKBOX", "COUNT", "DURATION", "QUANTITY"))
+        require(version.target.isFinite() && version.target > 0 && version.weekdays in 1..127 && version.everyDays in 1..3650)
+        require(version.reminderMinute == null || version.reminderMinute in 0..1439)
+        require(!LocalDate.parse(version.effectiveDay).isBefore(logicalDay()))
+        val db = provider()
+        db.withTransaction {
+            if (db.expandedDao().habit(version.habitId) == null) db.expandedDao().save(HabitDefinition(version.habitId, clock.millis()))
+            // A logged occurrence retains its original snapshot. Same-day edits move to tomorrow.
+            val logged = db.expandedDao().occurrences(version.effectiveDay, version.effectiveDay).any { it.habitId == version.habitId && it.state != "PENDING" }
+            val effective = if (logged) LocalDate.parse(version.effectiveDay).plusDays(1).toString() else version.effectiveDay
+            val existing = db.expandedDao().versionOn(version.habitId, effective)
+            db.expandedDao().save(version.copy(id = existing?.id ?: version.id, effectiveDay = effective))
+        }
+        prepareDay(logicalDay())
+    }
+    suspend fun archiveHabit(id: String, day: LocalDate) {
+        val db = provider()
+        db.withTransaction { db.expandedDao().save(requireNotNull(db.expandedDao().habit(id)).copy(archivedDay = day.plusDays(1).toString())) }
+    }
+    suspend fun logHabit(occurrenceId: String, quantity: Double, eventId: String): HabitLog {
+        require(quantity.isFinite() && quantity >= 0)
+        UUID.fromString(eventId)
+        val db = provider()
+        return db.withTransaction {
+            db.expandedDao().habitLog(eventId)?.let { return@withTransaction it }
+            val old = requireNotNull(db.expandedDao().occurrence(occurrenceId))
+            val version = db.expandedDao().versions(listOf(old.versionId)).single()
+            val log = HabitLog(eventId, occurrenceId, quantity - old.quantity, clock.millis())
+            db.expandedDao().save(log)
+            db.expandedDao().save(old.copy(quantity = quantity, state = HabitRules.state(quantity, version.target), updated = clock.millis()))
+            log
+        }
+    }
+    suspend fun undoHabit(id: String) {
+        val db = provider()
+        db.withTransaction {
+            val log = requireNotNull(db.expandedDao().habitLog(id))
+            if (log.undoneAt != null) return@withTransaction
+            val occurrence = requireNotNull(db.expandedDao().occurrence(log.occurrenceId))
+            // Only the newest change may be undone; older edits cannot overwrite a subsequent correction.
+            check(db.expandedDao().logs(log.occurrenceId).lastOrNull { it.undoneAt == null }?.id == id)
+            val value = (occurrence.quantity - log.quantity).coerceAtLeast(0.0)
+            val version = db.expandedDao().versions(listOf(occurrence.versionId)).single()
+            db.expandedDao().save(log.copy(undoneAt = clock.millis()))
+            db.expandedDao().save(occurrence.copy(quantity = value, state = HabitRules.state(value, version.target), updated = clock.millis()))
+        }
+    }
+    suspend fun skipHabit(id: String) {
+        val db = provider()
+        db.withTransaction { val old = requireNotNull(db.expandedDao().occurrence(id));
+            val version = db.expandedDao().versions(listOf(old.versionId)).single()
+            db.expandedDao().save(old.copy(state = if (old.state == "SKIPPED") HabitRules.state(old.quantity, version.target) else "SKIPPED", updated = clock.millis())) }
+    }
+    suspend fun saveSubject(subject: Subject) {
+        require(subject.title.isNotBlank() && subject.title.length <= 500 && subject.code.length <= 100)
+        provider().expandedDao().save(subject)
+    }
+    suspend fun saveNote(note: SessionNote) {
+        require(note.text.length <= 100_000)
+        val db = provider()
+        db.withTransaction { require(note.sessionId == null || db.expandedDao().session(note.sessionId) != null)
+            db.expandedDao().save(note.copy(savedAt = clock.millis())) }
+    }
+    suspend fun note(id: String) = provider().expandedDao().note(id)
+    suspend fun saveWater(log: WaterLog) { require(log.millilitres > 0); LocalDate.parse(log.day); provider().expandedDao().save(log) }
+    suspend fun deleteWater(id: String) = provider().expandedDao().deleteWater(id)
+    suspend fun saveSleep(log: SleepLog) {
+        require(log.wake > log.bedtime && log.wake - log.bedtime <= 7 * 86_400_000L)
+        require(log.restedness == null || log.restedness in 1..5)
+        provider().expandedDao().save(log)
+    }
+    suspend fun deleteSleep(id: String) = provider().expandedDao().deleteSleep(id)
+    suspend fun saveFood(food: FoodIdeaRecord) {
+        require(food.title.isNotBlank() && food.title.length <= 500 && food.ingredients.length <= 100_000 && food.instructions.length <= 100_000)
+        require(food.prepMinutes == null || food.prepMinutes in 0..1440)
+        provider().expandedDao().save(food.copy(updated = clock.millis()))
+    }
+    suspend fun deleteFood(id: String) {
+        val db = provider()
+        db.withTransaction { db.expandedDao().detachFood(id); db.expandedDao().deleteFood(id) }
+    }
+    suspend fun saveMeal(log: MealLog) { require(log.title.isNotBlank()); provider().expandedDao().save(log) }
+    suspend fun deleteMeal(id: String) = provider().expandedDao().deleteMeal(id)
+    suspend fun saveCare(reminder: CareReminder) {
+        require(reminder.instruction.isNotBlank() && reminder.instruction.length <= 10_000 && reminder.weekdays in 1..127 && reminder.minute in 0..1439)
+        provider().expandedDao().save(reminder)
+    }
+    suspend fun saveCareLog(log: CareLog) = provider().expandedDao().save(log)
+    suspend fun saveReflection(value: Reflection) {
+        require(!LocalDate.parse(value.endDay).isBefore(LocalDate.parse(value.startDay)))
+        require(listOf(value.helped, value.demanding, value.evidence, value.adjustment, value.highlight, value.obstacle, value.tomorrow).all { it.length <= 100_000 })
+        val db = provider()
+        db.withTransaction { val old = db.expandedDao().reflection(value.startDay, value.endDay)
+            db.expandedDao().save(value.copy(id = old?.id ?: value.id, updated = clock.millis())) }
+    }
+    suspend fun saveCapture(value: Capture) { require(value.text.isNotBlank() && value.text.length <= 100_000); provider().expandedDao().save(value) }
+    suspend fun interruption(value: InterruptionEvent) {
+        require(value.mode == "VOLUNTARY" && value.pauseSeconds in 0..60 && value.appPackage == null && value.outcome in setOf("RETURNED", "CONTINUED", "DISABLED"))
+        provider().expandedDao().save(value)
+    }
+}

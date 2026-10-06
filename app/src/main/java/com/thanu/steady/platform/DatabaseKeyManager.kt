@@ -12,7 +12,8 @@ import javax.crypto.spec.GCMParameterSpec
 import java.security.SecureRandom
 import android.util.Base64
 
-class DatabaseKeyManager(private val context: Context, private val alias: String = "SteadyDbKeyAlias") {
+class DatabaseKeyManager(private val context: Context, private val alias: String = "SteadyDbKeyAlias",
+    private val secretPrefix: String = "db_secret", private val databaseName: String = "steady_encrypted.db") {
 
     companion object {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
@@ -22,9 +23,9 @@ class DatabaseKeyManager(private val context: Context, private val alias: String
 
     fun getOrGenerateDatabasePassphrase(): ByteArray {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        val secretFile = File(context.filesDir, DB_SECRET_FILE)
-        val ivFile = File(context.filesDir, DB_IV_FILE)
-        val databaseExists = context.getDatabasePath("steady_encrypted.db").exists()
+        val secretFile = File(context.filesDir, "$secretPrefix.enc")
+        val ivFile = File(context.filesDir, "${secretPrefix}_iv.enc")
+        val databaseExists = context.getDatabasePath(databaseName).exists()
         fun exists(file: File) = file.exists() || File(file.path + ".bak").exists()
         val hasMetadata = exists(secretFile) || exists(ivFile)
         if (hasMetadata || databaseExists) {
@@ -61,7 +62,7 @@ class DatabaseKeyManager(private val context: Context, private val alias: String
     }
 
     fun deleteKeyMaterial() {
-        listOf(DB_SECRET_FILE, DB_IV_FILE).forEach {
+        listOf("$secretPrefix.enc", "${secretPrefix}_iv.enc").forEach {
             val file = File(context.filesDir, it)
             if (file.exists()) check(file.delete())
             val backup = File(context.filesDir, "$it.bak")

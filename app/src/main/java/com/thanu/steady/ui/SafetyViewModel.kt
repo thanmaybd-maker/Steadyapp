@@ -22,8 +22,8 @@ data class SafetyUiState(
     val errorMessage: String? = null
 )
 
-class SafetyViewModel(private val databaseProvider: () -> SteadyDatabase) : ViewModel() {
-    private val database get() = databaseProvider()
+class SafetyViewModel(private val repository: com.thanu.steady.data.PrivateSafetyRepository,
+    private val clock: java.time.Clock = java.time.Clock.systemUTC()) : ViewModel() {
     private val _uiState = MutableStateFlow(SafetyUiState())
     val uiState: StateFlow<SafetyUiState> = _uiState.asStateFlow()
 
@@ -34,9 +34,8 @@ class SafetyViewModel(private val databaseProvider: () -> SteadyDatabase) : View
     private fun loadPlan() {
         viewModelScope.launch {
             try {
-                val dao = database.safetyDao()
-                val planEntity = dao.getPlan()
-                val contacts = dao.getContacts().map {
+                val (planEntity, storedContacts) = repository.load()
+                val contacts = storedContacts.map {
                     SupportContact(it.id, it.role, it.displayName, it.phone, it.note, it.sortOrder)
                 }
 
@@ -101,15 +100,15 @@ class SafetyViewModel(private val databaseProvider: () -> SteadyDatabase) : View
                     followUpAt = p.followUpAt,
                     reviewedByUserAt = p.reviewedByUserAt,
                     clinicianReviewStatus = p.clinicianReviewStatus,
-                    updatedAt = Instant.now()
+                    updatedAt = clock.instant()
                 )
                 val contacts = p.contacts.map {
                     SupportContactEntity(it.id, p.id, it.role, it.displayName, it.phone, it.note, it.sortOrder)
                 }
-                database.safetyDao().saveFullPlan(entity, contacts)
+                repository.save(entity, contacts)
                 _uiState.update { it.copy(isSaved = true, isEditing = false, errorMessage = null) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(errorMessage = "Save failed: ${e.message}") }
+                _uiState.update { it.copy(errorMessage = "The private plan could not be saved. Your draft is preserved.") }
             }
         }
     }

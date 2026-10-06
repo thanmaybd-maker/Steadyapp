@@ -7,7 +7,14 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [DailyPlanEntity::class, SafetyPlanEntity::class, SupportContactEntity::class, TimerSessionEntity::class, WeeklyReviewEntity::class, AppPreferences::class], version = 3, exportSchema = true)
+@Database(entities = [DailyPlanEntity::class, SafetyPlanEntity::class, SupportContactEntity::class,
+    TimerSessionEntity::class, WeeklyReviewEntity::class, AppPreferences::class,
+    PlanItem::class, HabitDefinition::class, HabitVersion::class, HabitOccurrence::class, HabitLog::class,
+    Subject::class, Topic::class, ActivitySession::class, ActivitySegment::class, SessionNote::class,
+    ExerciseSet::class, WorkoutTemplate::class, WaterLog::class, SleepLog::class, FoodIdeaRecord::class,
+    MealLog::class, CareReminder::class, CareLog::class, Reflection::class, Capture::class,
+    InterruptionEvent::class, ActivityObservation::class, RoutePoint::class, EnergyEstimate::class,
+    DaySettings::class, ExpandedProfile::class], version = 4, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class SteadyDatabase : RoomDatabase() {
     abstract fun dailyPlanDao(): DailyPlanDao
@@ -15,6 +22,7 @@ abstract class SteadyDatabase : RoomDatabase() {
     abstract fun timerDao(): TimerDao
     abstract fun reviewDao(): ReviewDao
     abstract fun preferencesDao(): PreferencesDao
+    abstract fun expandedDao(): ExpandedDao
 
     companion object {
         val MIGRATION_2_3 = object : Migration(2, 3) {

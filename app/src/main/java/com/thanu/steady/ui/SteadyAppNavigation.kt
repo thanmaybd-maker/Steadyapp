@@ -81,7 +81,7 @@ fun SteadyAppNavigation(appContainer: AppContainer) {
                 val safetyViewModel: SafetyViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return SafetyViewModel({ appContainer.database }) as T
+                            return SafetyViewModel(appContainer.privateSafetyRepository, appContainer.clock) as T
                         }
                     }
                 )

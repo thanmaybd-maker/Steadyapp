@@ -23,6 +23,9 @@ interface SafetyDao {
     @Query("DELETE FROM support_contact WHERE planId = 1")
     suspend fun clearContacts()
 
+    @Query("DELETE FROM safety_plan WHERE id = 1")
+    suspend fun clearPlan()
+
     @Transaction
     suspend fun saveFullPlan(plan: SafetyPlanEntity, contacts: List<SupportContactEntity>) {
         insertPlan(plan)
