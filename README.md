@@ -43,7 +43,7 @@ existing JDK/SDK installation:
 .\gradlew.bat :app:assembleDebug
 .\gradlew.bat :app:testDebugUnitTest
 .\gradlew.bat :app:lintDebug
-.\gradlew.bat :app:connectedDebugAndroidTest
+.\gradlew.bat :app:connectedQaAndroidTest
 ```
 
 Connected checks require an authorised emulator or phone. Passing a build alone

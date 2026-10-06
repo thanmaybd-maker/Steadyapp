@@ -80,7 +80,7 @@ if (-not $env:ANDROID_HOME -and -not $env:ANDROID_SDK_ROOT -and
 Push-Location $steadyProjectRoot
 try {
     $steadyTasks = @(':app:assembleDebug', ':app:testDebugUnitTest', ':app:lintDebug')
-    if ($ConnectedTests) { $steadyTasks += ':app:connectedDebugAndroidTest' }
+    if ($ConnectedTests) { $steadyTasks += ':app:connectedQaAndroidTest' }
     & (Join-Path $steadyProjectRoot 'gradlew.bat') @steadyTasks --no-daemon --console=plain
     if ($LASTEXITCODE -ne 0) { throw "Gradle checks failed: $LASTEXITCODE" }
 } finally {

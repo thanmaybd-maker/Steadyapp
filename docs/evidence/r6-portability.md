@@ -3,7 +3,8 @@
 Source checkpoint: `e082f01`. Prior expanded shell: `940394c`.
 Host: Windows, local Temurin JDK 17.0.20.1+1, Gradle 8.7, SDK 35.
 Device: Xiaomi 14 (23127PN0CG), Android 16/API 36, HyperOS OS3.0.304.0.WNCINXM.
-All data checks use isolated synthetic databases; the owner database is not cleared.
+Data fixtures use isolated synthetic databases. The connected-runner cleanup issue below
+must be considered separately from fixture isolation.
 
 ## Commands and results
 
@@ -47,8 +48,27 @@ window handling independently of the Recents preference.
 
 ## Limits and next action
 
-The expanded release is **not yet accepted**. The next connected run adds old-zone history
-and a synthetic ten-year workload. UI/provider/authentication cancellation tests, private draft
+The subsequent Gradle connected command passed **13 tests**, no failures/skips, with
+18.598 seconds of test execution (48 seconds including Gradle/device setup). Historical
+zone/correction/reflection checks passed. The 7,300-record, ten-year fixture measured
+Today query p95 6.002084 ms and water-save p95 2.383907 ms over 20 repetitions each.
+These are isolated-storage measurements, not end-to-end UI response or frame benchmarks.
+
+**Runner cleanup correction:** Gradle's connected runner uninstalled the target package
+after testing. The owner package was absent afterwards. This was an avoidable test-isolation
+mistake; any owner-entered records may have been removed. A reinstall was rejected by
+Xiaomi with INSTALL_FAILED_USER_RESTRICTED. The owner was informed and asked whether
+records had been entered and to unlock/approve the resend. Future connected tests target
+the separate com.thanu.steady.qa package via the qa build type; scripts/README now use
+connectedQaAndroidTest. The production com.thanu.steady package is never a cleanup target.
+
+The owner-approved reinstall succeeded and opened MainActivity (one cold launch: 559 ms).
+The isolated `:app:connectedQaAndroidTest` run subsequently passed all 13 tests in 50 seconds
+including setup. `pm path com.thanu.steady` returned the same production APK path before and
+after QA cleanup. The merged test manifest targets `com.thanu.steady.qa`, not the owner package.
+Whether the owner had entered records before the earlier cleanup is still unanswered.
+
+The expanded release is **not yet accepted**. UI/provider/authentication cancellation tests, private draft
 process recovery, quiet-hour reminder scheduling, interval/rest/template controls, routine/card
 sizing, complete P0 reconciliation, max-text/TalkBack/contrast, native ZIP alignment and broader
 device delivery scenarios remain open. No private Safety screenshot is captured.
