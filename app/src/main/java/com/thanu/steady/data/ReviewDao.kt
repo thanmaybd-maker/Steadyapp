@@ -16,4 +16,10 @@ interface ReviewDao {
 
     @Query("SELECT * FROM daily_plans WHERE logicalDay >= :start AND logicalDay <= :end ORDER BY logicalDay ASC")
     suspend fun getPlansInWindow(start: LocalDate, end: LocalDate): List<DailyPlanEntity>
+
+    @Query("SELECT * FROM weekly_review ORDER BY weekEnd")
+    suspend fun getAll(): List<WeeklyReviewEntity>
+
+    @Query("DELETE FROM weekly_review")
+    suspend fun clear()
 }

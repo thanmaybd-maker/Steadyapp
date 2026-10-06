@@ -18,4 +18,8 @@ data class WeeklyReviewEntity(
     val changedEvidence: String,
     val adjustment: String,
     val updatedAt: Instant
-)
+) {
+    fun toDomain() = com.thanu.steady.domain.WeeklyReview(weekEnd, indicatorSleep,
+        indicatorLearning, indicatorBuilding, indicatorHealth, indicatorConnection,
+        helped, tooDemanding, changedEvidence, adjustment, updatedAt)
+}

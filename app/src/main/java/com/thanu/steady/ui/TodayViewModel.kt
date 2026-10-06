@@ -30,7 +30,8 @@ data class TodayUiState(
     val isSaved: Boolean = false
 )
 
-class TodayViewModel(private val database: SteadyDatabase) : ViewModel() {
+class TodayViewModel(private val databaseProvider: () -> SteadyDatabase) : ViewModel() {
+    private val database get() = databaseProvider()
     private val policy = LogicalDayPolicy()
     
     private val _uiState = MutableStateFlow(TodayUiState())

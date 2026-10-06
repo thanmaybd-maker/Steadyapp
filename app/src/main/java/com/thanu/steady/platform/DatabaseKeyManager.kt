@@ -23,6 +23,17 @@ class DatabaseKeyManager(private val context: Context) {
 
     fun getOrGenerateDatabasePassphrase(): ByteArray {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        val secretFile = File(context.filesDir, DB_SECRET_FILE)
+        val ivFile = File(context.filesDir, DB_IV_FILE)
+        val databaseExists = context.getDatabasePath("steady_encrypted.db").exists()
+        val hasMetadata = secretFile.exists() || ivFile.exists()
+        if (hasMetadata || databaseExists) {
+            check(secretFile.exists() && ivFile.exists() && keyStore.containsAlias(ALIAS)) {
+                "Encrypted storage key is unavailable; existing records were preserved"
+            }
+            val existingKey = keyStore.getKey(ALIAS, null) as SecretKey
+            return unwrapSecret(existingKey, secretFile.readBytes(), ivFile.readBytes())
+        }
         
         if (!keyStore.containsAlias(ALIAS)) {
             generateKeystoreKey()
@@ -30,8 +41,6 @@ class DatabaseKeyManager(private val context: Context) {
         
         val secretKey = keyStore.getKey(ALIAS, null) as SecretKey
         
-        val secretFile = File(context.filesDir, DB_SECRET_FILE)
-        val ivFile = File(context.filesDir, DB_IV_FILE)
         
         if (secretFile.exists() && ivFile.exists()) {
             return unwrapSecret(secretKey, secretFile.readBytes(), ivFile.readBytes())
@@ -39,10 +48,27 @@ class DatabaseKeyManager(private val context: Context) {
             val generatedSecret = ByteArray(32)
             SecureRandom().nextBytes(generatedSecret)
             val (wrappedSecret, iv) = wrapSecret(secretKey, generatedSecret)
-            secretFile.writeBytes(wrappedSecret)
-            ivFile.writeBytes(iv)
+            fun writeAtomic(file: File, bytes: ByteArray) {
+                val atomic = android.util.AtomicFile(file)
+                val stream = atomic.startWrite()
+                try { stream.write(bytes); atomic.finishWrite(stream) }
+                catch (failure: Exception) { atomic.failWrite(stream); throw failure }
+            }
+            writeAtomic(ivFile, iv)
+            writeAtomic(secretFile, wrappedSecret)
             return generatedSecret
         }
+    }
+
+    fun deleteKeyMaterial() {
+        listOf(DB_SECRET_FILE, DB_IV_FILE).forEach {
+            val file = File(context.filesDir, it)
+            if (file.exists()) check(file.delete())
+            val backup = File(context.filesDir, "$it.bak")
+            if (backup.exists()) check(backup.delete())
+        }
+        val store = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        if (store.containsAlias(ALIAS)) store.deleteEntry(ALIAS)
     }
 
     private fun generateKeystoreKey() {

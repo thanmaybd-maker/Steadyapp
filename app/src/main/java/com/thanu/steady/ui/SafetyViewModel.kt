@@ -22,7 +22,8 @@ data class SafetyUiState(
     val errorMessage: String? = null
 )
 
-class SafetyViewModel(private val database: SteadyDatabase) : ViewModel() {
+class SafetyViewModel(private val databaseProvider: () -> SteadyDatabase) : ViewModel() {
+    private val database get() = databaseProvider()
     private val _uiState = MutableStateFlow(SafetyUiState())
     val uiState: StateFlow<SafetyUiState> = _uiState.asStateFlow()
 

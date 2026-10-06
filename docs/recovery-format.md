@@ -15,7 +15,7 @@ The 44-byte authenticated header is big-endian: eight ASCII bytes `STDYBK01`,
 32-bit iteration count, 16-byte salt, 12-byte nonce, 32-bit ciphertext length.
 Ciphertext follows, including the GCM tag. All header bytes are GCM associated
 data. Only this version and exact iteration count are accepted. JSON plaintext is
-bounded at 8 MiB, archive size at 8 MiB + 60 bytes. Length mismatches, unknown
+bounded at 50 MiB, archive size at 50 MiB + 60 bytes. Length mismatches, unknown
 version, wrong passwords, modified data and truncation fail before import.
 
 This is an archive framing format around standard crypto, not a custom cipher.

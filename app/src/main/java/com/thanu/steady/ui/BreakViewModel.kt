@@ -25,9 +25,10 @@ data class BreakUiState(
 )
 
 class BreakViewModel(
-    private val database: SteadyDatabase,
+    private val databaseProvider: () -> SteadyDatabase,
     private val alarmAdapter: AlarmAdapter
 ) : ViewModel() {
+    private val database get() = databaseProvider()
 
     private val stateMachine = TimerStateMachine()
     private val _uiState = MutableStateFlow(BreakUiState())

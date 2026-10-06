@@ -17,4 +17,10 @@ interface DailyPlanDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlan(plan: DailyPlanEntity)
+
+    @Query("SELECT * FROM daily_plans ORDER BY logicalDay")
+    suspend fun getAll(): List<DailyPlanEntity>
+
+    @Query("DELETE FROM daily_plans")
+    suspend fun clear()
 }

@@ -60,7 +60,7 @@ fun SteadyAppNavigation(appContainer: AppContainer) {
                 val todayViewModel: TodayViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return TodayViewModel(appContainer.database) as T
+                            return TodayViewModel({ appContainer.database }) as T
                         }
                     }
                 )
@@ -70,7 +70,7 @@ fun SteadyAppNavigation(appContainer: AppContainer) {
                 val breakViewModel: BreakViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return BreakViewModel(appContainer.database, appContainer.alarmAdapter) as T
+                            return BreakViewModel({ appContainer.database }, appContainer.alarmAdapter) as T
                         }
                     }
                 )
@@ -80,7 +80,7 @@ fun SteadyAppNavigation(appContainer: AppContainer) {
                 val safetyViewModel: SafetyViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return SafetyViewModel(appContainer.database) as T
+                            return SafetyViewModel({ appContainer.database }) as T
                         }
                     }
                 )
@@ -90,7 +90,7 @@ fun SteadyAppNavigation(appContainer: AppContainer) {
                 val reviewViewModel: ReviewViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return ReviewViewModel(appContainer.database) as T
+                            return ReviewViewModel({ appContainer.database }) as T
                         }
                     }
                 )
@@ -100,11 +100,19 @@ fun SteadyAppNavigation(appContainer: AppContainer) {
                 val settingsViewModel: SettingsViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return SettingsViewModel(appContainer.database, appContainer.documentAdapter) as T
+                            return SettingsViewModel(appContainer.recoveryRepository, appContainer.documentAdapter,
+                                appContainer.alarmAdapter, appContainer.notificationAdapter, appContainer.clock,
+                                appContainer::deleteLocalData) as T
                         }
                     }
                 )
-                SettingsScreen(viewModel = settingsViewModel) 
+                SettingsScreen(viewModel = settingsViewModel, onImportCompleted = {
+                    listOf("Today", "Break", "Safety", "Review", "Settings").forEach { navController.clearBackStack(it) }
+                    navController.navigate("Today") {
+                        popUpTo(navController.graph.id) { inclusive = false; saveState = false }
+                        launchSingleTop = true
+                    }
+                })
             }
         }
     }

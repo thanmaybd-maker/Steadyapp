@@ -7,8 +7,9 @@ import java.io.OutputStreamWriter
 class DocumentAdapter(private val context: Context) {
     fun writeMarkdownToUri(uri: Uri, content: String): Boolean {
         return try {
-            context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                OutputStreamWriter(outputStream).use { writer ->
+            val output = context.contentResolver.openOutputStream(uri, "wt") ?: return false
+            output.use { outputStream ->
+                OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
                     writer.write(content)
                 }
             }
@@ -20,7 +21,8 @@ class DocumentAdapter(private val context: Context) {
     
     fun writeBackupToUri(uri: Uri, data: ByteArray): Boolean {
         return try {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(data) }
+            val output = context.contentResolver.openOutputStream(uri, "wt") ?: return false
+            output.use { it.write(data); it.flush() }
             true
         } catch (e: Exception) {
             false
@@ -29,7 +31,18 @@ class DocumentAdapter(private val context: Context) {
 
     fun readBackupFromUri(uri: Uri): ByteArray? {
         return try {
-            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            val input = context.contentResolver.openInputStream(uri) ?: return null
+            input.use {
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = it.read(buffer)
+                    if (count < 0) break
+                    if (output.size().toLong() + count > com.thanu.steady.domain.BackupService.MAX_ARCHIVE_BYTES) return null
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
         } catch (e: Exception) {
             null
         }

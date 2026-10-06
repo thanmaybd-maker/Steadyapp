@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 
 class NotificationAdapter(private val context: Context) {
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    fun cancelAll() = notificationManager.cancelAll()
 
     init {
         createChannel()

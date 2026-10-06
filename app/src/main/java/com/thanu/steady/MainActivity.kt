@@ -17,21 +17,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import com.thanu.steady.di.AppContainer
-import com.thanu.steady.ui.DiagnosticViewModel
 
 class MainActivity : ComponentActivity() {
     private lateinit var appContainer: AppContainer
-    private lateinit var diagnosticViewModel: DiagnosticViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        appContainer = AppContainer(this)
-        diagnosticViewModel = DiagnosticViewModel(appContainer.database)
-        // diagnosticViewModel.runDiagnostic() // Removed canary write from normal startup
+        appContainer = (application as SteadyApplication).container
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
 
         setContent {
-            MaterialTheme {
+            com.thanu.steady.ui.SteadyTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

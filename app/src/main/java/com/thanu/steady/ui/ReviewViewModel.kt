@@ -23,7 +23,8 @@ data class ReviewUiState(
     val showThirtyDay: Boolean = false
 )
 
-class ReviewViewModel(private val database: SteadyDatabase) : ViewModel() {
+class ReviewViewModel(private val databaseProvider: () -> SteadyDatabase) : ViewModel() {
+    private val database get() = databaseProvider()
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
 
