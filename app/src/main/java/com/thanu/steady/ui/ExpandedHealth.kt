@@ -16,7 +16,10 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
     "CYCLING" to R.string.cycling_mode, "STRENGTH" to R.string.strength_mode, "INTERVALS" to R.string.intervals_mode,
     "MOBILITY" to R.string.mobility_mode, "CUSTOM" to R.string.custom_mode)
 
-@Composable fun ExpandedHealth(model: ExpandedViewModel, state: ExpandedUiState, onSafety: () -> Unit) {
+@Composable fun ExpandedHealth(model: ExpandedViewModel, state: ExpandedUiState, onSafety: () -> Unit,
+    quickAction: String? = null, onQuickActionHandled: () -> Unit = {}) {
+    val cadence by model.platformSensors.cadence.collectAsState()
+    val steps by model.platformSensors.steps.collectAsState()
     val period = state.period ?: return
     var editor by remember { mutableStateOf<String?>(null) }
     var food by remember { mutableStateOf<FoodIdeaRecord?>(null) }
@@ -29,6 +32,8 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
     var selectedSet by remember { mutableStateOf<ExerciseSet?>(null) }
     var restSeconds by remember { mutableStateOf("60") }
     var undoneWater by remember { mutableStateOf<WaterLog?>(null) }
+    var quickWater by remember { mutableStateOf<WaterLog?>(null) }
+    LaunchedEffect(quickAction) { if(quickAction != null) { water = null; sleep = null; editor = quickAction; onQuickActionHandled() } }
     val active = period.active.firstOrNull()
     LaunchedEffect(active?.id, state.busy) {
         try { if (active?.type == "WORKOUT") sets = model.sets(active.id); templates = model.templates() }
@@ -37,6 +42,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
     }
     ExpandedPage {
         StateMessages(state)
+        CircadianWaveChart()
         if (period.profile.modules.contains("MOVEMENT")) SectionCard(R.string.movement_title) {
             Text(stringResource(R.string.manual_workout_description))
             PrimaryAction(R.string.start_workout) { editor = "workout" }
@@ -93,7 +99,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
                 SecondaryAction(R.string.save_current_focus, !state.busy) { model.transition(ActivityState.STOPPED) }
                 SecondaryAction(R.string.discard_session, !state.busy) { model.transition(ActivityState.DISCARDED) }
             }
-            Text(stringResource(R.string.steps_unavailable))
+            MotionStudioCard(cadence = cadence, steps = steps)
             period.sessions.filter { it.type == "WORKOUT" && it.state in setOf("STOPPED", "COMPLETED") && it.activeMillis > 0 }.forEach { session ->
                 Text(session.title.ifBlank { stringResource(workoutModes.firstOrNull { it.first == session.kind }?.second ?: R.string.custom_mode) })
                 Text(stringResource(R.string.actual_seconds, session.activeMillis / 1000))
@@ -103,9 +109,22 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
             }
         }
         if (period.profile.modules.contains("WATER")) SectionCard(R.string.water_title) {
-            Text(stringResource(R.string.water_total, period.water.sumOf { it.millilitres.toLong() }))
-            period.profile.waterTargetMl?.let { Text(stringResource(R.string.optional_water_target, it)) }
+            val totalMl = period.water.sumOf { it.millilitres.toLong() }
+            val targetMl = period.profile.waterTargetMl ?: 3000
+            HydrationCadenceRing(targetLiters = targetMl / 1000f, currentLiters = totalMl / 1000f) { water = null; editor = "water" }
             PrimaryAction(R.string.log_water) { water = null; editor = "water" }
+            com.thanu.steady.domain.PersonalizationRules.waterQuantities(period.profile.waterQuickMl).forEach { ml ->
+                androidx.compose.material3.OutlinedButton(onClick = {
+                    val zone = period.preferences.zoneId; val boundary = period.preferences.boundaryMinutes
+                    val entry = WaterLog(model.repository.newId(),period.end.toString(),ml,model.repository.clock.millis(),zone,boundary)
+                    model.action({ model.repository.saveWater(entry) },after = { quickWater = entry })
+                },enabled = !state.busy,modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                    Text(stringResource(R.string.quick_water,waterAmount(ml.toLong(),period.profile.waterUnit)))
+                }
+            }
+            quickWater?.let { entry -> SecondaryAction(R.string.undo_water_log,!state.busy) {
+                model.action({ model.repository.deleteWater(entry.id) },after = { quickWater = null })
+            } }
             period.water.forEach { entry ->
                 Text(stringResource(R.string.water_serving, entry.millilitres))
                 SecondaryAction(R.string.edit_action) { water = entry; editor = "water" }
@@ -124,6 +143,7 @@ val workoutModes = listOf("WALKING" to R.string.walking_mode, "RUNNING" to R.str
             }
         }
         if (period.profile.modules.contains("FOOD")) SectionCard(R.string.food_title) {
+            CognitiveNutritionCard()
             Text(stringResource(R.string.food_filter_disclosure))
             PrimaryAction(R.string.add_food) { food = null; editor = "food" }
             val avoid = period.preferences.avoidFoods.split(',').map { it.trim().lowercase(java.util.Locale.ROOT) }.filter(String::isNotBlank)

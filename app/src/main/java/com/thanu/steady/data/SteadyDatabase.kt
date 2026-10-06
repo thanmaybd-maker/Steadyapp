@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     ExerciseSet::class, WorkoutTemplate::class, WaterLog::class, SleepLog::class, FoodIdeaRecord::class,
     MealLog::class, CareReminder::class, CareLog::class, Reflection::class, Capture::class,
     InterruptionEvent::class, ActivityObservation::class, RoutePoint::class, EnergyEstimate::class,
-    DaySettings::class, ExpandedProfile::class], version = 4, exportSchema = true)
+    DaySettings::class, ExpandedProfile::class], version = 5, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class SteadyDatabase : RoomDatabase() {
     abstract fun dailyPlanDao(): DailyPlanDao

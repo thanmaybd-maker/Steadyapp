@@ -22,6 +22,7 @@ data class ExpandedUiState(val period: PeriodSnapshot? = null, val loading: Bool
 class ExpandedViewModel(val repository: ExpandedRepository, private val activity: ActivityRepository,
     private val preferences: PreferencesRepository, private val alarms: ActivityAlarmAdapter,
     private val notifications: NotificationAdapter, private val bootstrap: BootstrapStore,
+    val platformSensors: PlatformSensors, val audioSoundscapeEngine: AudioSoundscapeEngine,
     private val isForeground: () -> Boolean, private val refreshReminders: suspend () -> Unit = {},
     private val interruptLegacy: suspend () -> Unit = {}) : ViewModel() {
     private val _state = MutableStateFlow(ExpandedUiState())
@@ -110,6 +111,10 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
         watching = viewModelScope.launch {
             try {
                 val range = withContext(Dispatchers.IO) {
+                    if(repository.profile().zoneMode == "DEVICE") {
+                        val zone = java.time.ZoneId.systemDefault().id
+                        if(preferences.get().zoneId != zone) preferences.update { it.copy(zoneId = zone) }
+                    }
                     interruptLegacy()
                     activity.reconcile().forEach { if (it.state == "RUNNING") alarms.schedule(it) else alarms.cancel(it.id) }
                     val today = repository.logicalDay()

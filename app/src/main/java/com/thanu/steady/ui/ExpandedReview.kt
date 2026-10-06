@@ -6,6 +6,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
 import com.thanu.steady.R
 import com.thanu.steady.data.*
 import com.thanu.steady.domain.HabitRules
@@ -14,6 +15,7 @@ import java.time.LocalDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ExpandedReview(model: ExpandedViewModel, state: ExpandedUiState, onSafety: () -> Unit) {
     val period = state.period ?: return
+    val visibleCards = period.profile.reviewCards.split(',').toSet()
     var mode by remember { mutableStateOf("WEEK") }
     var endText by remember { mutableStateOf(period.end.toString()) }
     var editor by remember { mutableStateOf<ActivitySession?>(null) }
@@ -28,21 +30,26 @@ import java.time.LocalDate
     ExpandedPage {
         StateMessages(state)
         SectionCard(R.string.review_period) {
-            ChoiceList(mode, listOf("WEEK" to R.string.week_period, "MONTH" to R.string.month_period)) {
-                mode = it; val end = LocalDate.parse(endText)
-                model.reload(if (it == "MONTH") end.withDayOfMonth(1) else end.minusDays(6), end)
+            androidx.compose.foundation.layout.Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.review_range, period.start.toString(), period.end.toString()), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = androidx.compose.ui.graphics.Color(0xFF4648D4))
+                Text(mode, style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.Gray)
             }
-            TextInput(endText, R.string.period_end_date, { endText = it })
-            PrimaryAction(R.string.show_period) { model.action({ LocalDate.parse(endText) }, success = null,
+            androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+            androidx.compose.foundation.layout.Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly) {
+                androidx.compose.material3.TextButton(onClick = { select(if (mode == "MONTH") period.end.minusMonths(1) else period.end.minusWeeks(1)) }) { Text("< Prev") }
+                androidx.compose.material3.TextButton(onClick = {
+                    mode = if (mode == "WEEK") "MONTH" else "WEEK"
+                    val end = LocalDate.parse(endText)
+                    model.reload(if (mode == "MONTH") end.withDayOfMonth(1) else end.minusDays(6), end)
+                }) { Text(if (mode == "WEEK") "View Month" else "View Week") }
+                androidx.compose.material3.TextButton(onClick = { select(if (mode == "MONTH") period.end.plusMonths(1) else period.end.plusWeeks(1)) }) { Text("Next >") }
+            }
+            PrimaryAction(R.string.current_period) { model.action({ endText = model.repository.logicalDay().toString() }, success = null,
                 after = { select(LocalDate.parse(endText)) }) }
             SecondaryAction(R.string.choose_review_date) { calendar = true }
-            SecondaryAction(R.string.previous_period) { select(if (mode == "MONTH") period.end.minusMonths(1) else period.end.minusWeeks(1)) }
-            SecondaryAction(R.string.next_period) { select(if (mode == "MONTH") period.end.plusMonths(1) else period.end.plusWeeks(1)) }
-            SecondaryAction(R.string.current_period) { model.action({ endText = model.repository.logicalDay().toString() }, success = null,
-                after = { select(LocalDate.parse(endText)) }) }
-            Text(stringResource(R.string.review_range, period.start.toString(), period.end.toString()))
         }
         SectionCard(R.string.review_summary) {
+            if("FOCUS" in visibleCards) {
             Text(stringResource(R.string.focus_actual_minutes, focusMillis(period) / 60_000.0))
             val focus = period.sessions.filter { it.type == "FOCUS" && completedInPeriod(it,period) }
             Text(stringResource(R.string.focus_session_count, focus.size))
@@ -50,14 +57,16 @@ import java.time.LocalDate
                 val seconds = activityMillis(period,"FOCUS",subject.id) / 1000
                 if (seconds > 0) Text(stringResource(R.string.subject_duration, subject.title, seconds))
             }
+            }
             Text(stringResource(R.string.completed_task_count, period.tasks.count { it.state == "COMPLETED" }))
-            Text(stringResource(R.string.workout_count, period.sessions.count { it.type == "WORKOUT" && completedInPeriod(it,period) }))
-            Text(stringResource(R.string.water_total, period.water.sumOf { it.millilitres.toLong() }))
-            if (period.sleep.isEmpty()) Text(stringResource(R.string.sleep_empty)) else
+            if("WORKOUTS" in visibleCards) Text(stringResource(R.string.workout_count, period.sessions.count { it.type == "WORKOUT" && completedInPeriod(it,period) }))
+            if("WATER" in visibleCards) Text(waterAmount(period.water.sumOf { it.millilitres.toLong() },period.profile.waterUnit))
+            if("SLEEP" in visibleCards) { if (period.sleep.isEmpty()) Text(stringResource(R.string.sleep_empty)) else
                 Text(stringResource(R.string.sleep_entries_count, period.sleep.size))
+            }
             PrimaryAction(R.string.supporting_records) { details = !details }
         }
-        SectionCard(R.string.habit_history) {
+        if("HABITS" in visibleCards) SectionCard(R.string.habit_history) {
             val dates = generateSequence(period.start) { it.plusDays(1) }.takeWhile { !it.isAfter(period.end) }.toList()
             if (period.habits.isEmpty()) Text(stringResource(R.string.empty_habits))
             period.habits.forEach { habit ->
@@ -78,8 +87,13 @@ import java.time.LocalDate
                 }
             }
         }
-        if (details) SectionCard(R.string.supporting_records) {
-            period.occurrences.forEach { occurrence ->
+        androidx.compose.animation.AnimatedVisibility(
+            visible = details,
+            enter = androidx.compose.animation.expandVertically(animationSpec = androidx.compose.animation.core.tween(240)) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(240)),
+            exit = androidx.compose.animation.shrinkVertically(animationSpec = androidx.compose.animation.core.tween(160)) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(160))
+        ) {
+            SectionCard(R.string.supporting_records) {
+                period.occurrences.forEach { occurrence ->
                 period.versions.firstOrNull { it.id == occurrence.versionId }?.let { version ->
                     Text(stringResource(R.string.habit_history_row,occurrence.day,version.title,stringResource(stateLabel(occurrence.state))))
                     Text(stringResource(R.string.habit_quantity,occurrence.quantity,version.target,version.unit))
@@ -108,6 +122,7 @@ import java.time.LocalDate
                 SecondaryAction(R.string.delete_action,!state.busy) { model.action({ model.repository.deleteSleep(sleep.id) }) }
             }
             period.meals.forEach { Text(it.title) }
+        }
         }
         val key = "reflection:${period.start}:${period.end}"
         val existing = period.reflection

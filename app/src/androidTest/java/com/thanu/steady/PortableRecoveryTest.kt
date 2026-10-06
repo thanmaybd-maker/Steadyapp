@@ -27,7 +27,7 @@ class PortableRecoveryTest {
         val name = "portable-synthetic-${id()}.db"; names += name
         return Room.databaseBuilder(context, SteadyDatabase::class.java,name)
             .openHelperFactory(SupportOpenHelperFactory(ByteArray(32).also(java.security.SecureRandom()::nextBytes)))
-            .addMigrations(SteadyDatabase.MIGRATION_1_2,SteadyDatabase.MIGRATION_2_3,EXPANDED_MIGRATION_3_4)
+            .addMigrations(SteadyDatabase.MIGRATION_1_2,SteadyDatabase.MIGRATION_2_3,EXPANDED_MIGRATION_3_4,PERSONALIZATION_MIGRATION_4_5)
             .build().also(opened::add)
     }
     @After fun cleanup() { opened.forEach { it.close() }; names.forEach { context.deleteDatabase(it) } }

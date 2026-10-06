@@ -1,0 +1,100 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="800dp"
+    android:height="450dp"
+    android:viewportWidth="800"
+    android:viewportHeight="450">
+
+    <!-- Starry Night Sky Gradient -->
+    <path
+        android:pathData="M0,0h800v450h-800z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="0"
+                android:endX="400"
+                android:endY="320"
+                android:type="linear">
+                <item android:color="#FF030712" android:offset="0.0" />
+                <item android:color="#FF0F172A" android:offset="0.4" />
+                <item android:color="#FF1E1B4B" android:offset="0.75" />
+                <item android:color="#FF31102B" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Star Cluster Points -->
+    <path
+        android:fillColor="#80FFFFFF"
+        android:pathData="M110,40h2v2h-2z M170,75h2.5v2.5h-2.5z M230,30h1.5v1.5h-1.5z M310,85h2v2h-2z M390,45h2.5v2.5h-2.5z M460,25h1.5v1.5h-1.5z M540,70h2v2h-2z M620,35h2.5v2.5h-2.5z M690,80h1.5v1.5h-1.5z M750,45h2v2h-2z M80,110h2v2h-2z M270,120h1.5v1.5h-1.5z M500,105h2v2h-2z M720,115h2v2h-2z" />
+
+    <!-- Distant Night Pine Ridge Silhouette -->
+    <path
+        android:fillColor="#E6050A14"
+        android:pathData="M0,240 L60,200 L140,235 L220,185 L320,230 L420,175 L520,225 L620,180 L720,235 L800,195 L800,340 L0,340 Z" />
+
+    <!-- Pine Forest Midground -->
+    <path
+        android:fillColor="#FF080F1D"
+        android:pathData="M0,280 L70,230 L160,275 L260,220 L360,265 L480,215 L590,270 L700,225 L800,265 L800,380 L0,380 Z" />
+
+    <!-- Campfire Clearing Ground -->
+    <path
+        android:pathData="M0,350h800v100h-800z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="350"
+                android:endX="400"
+                android:endY="450"
+                android:type="linear">
+                <item android:color="#FF1A0C08" android:offset="0.0" />
+                <item android:color="#FF0D0504" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Warm Campfire Glow Radial Center -->
+    <path
+        android:pathData="M400,390m-160,0a160,80 0 1,0 320,0a160,80 0 1,0 -320,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="390"
+                android:endX="400"
+                android:endY="470"
+                android:type="radial"
+                android:gradientRadius="160">
+                <item android:color="#66EA580C" android:offset="0.0" />
+                <item android:color="#269A3412" android:offset="0.5" />
+                <item android:color="#00000000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Fire Logs Base -->
+    <path
+        android:fillColor="#FF3E2723"
+        android:pathData="M350,422 L450,402 L454,410 L354,430 Z M350,402 L450,422 L446,430 L346,410 Z M335,418 L465,418 L465,426 L335,426 Z" />
+
+    <!-- Campfire Flames Outer (Amber/Orange) -->
+    <path
+        android:fillColor="#FFEA580C"
+        android:pathData="M400,345 Q425,385 435,415 Q400,425 365,415 Q375,385 400,345 Z" />
+
+    <!-- Campfire Flames Inner (Yellow/White) -->
+    <path
+        android:fillColor="#FFFBBF24"
+        android:pathData="M400,360 Q418,390 422,414 Q400,420 378,414 Q382,390 400,360 Z" />
+
+    <!-- Campfire Flame Core (White Hot) -->
+    <path
+        android:fillColor="#FFFFFBEB"
+        android:pathData="M400,380 Q410,398 412,412 Q400,416 388,412 Q390,398 400,380 Z" />
+
+    <!-- Rising Embers & Sparks -->
+    <path
+        android:fillColor="#FFF59E0B"
+        android:pathData="M395,335h3v3h-3z M412,320h2.5v2.5h-2.5z M385,310h2v2h-2z M405,295h2v2h-2z M398,275h2.5v2.5h-2.5z M418,285h2v2h-2z M390,250h2v2h-2z M408,240h2v2h-2z" />
+
+</vector>

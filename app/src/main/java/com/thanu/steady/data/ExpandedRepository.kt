@@ -24,6 +24,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
     }
     suspend fun profile() = provider().expandedDao().profile() ?: ExpandedProfile()
     suspend fun saveProfile(value: ExpandedProfile) {
+        PersonalizationRules.validate(value.ringMetrics,value.waterQuickMl,value.waterUnit,value.reviewCards)
         require(value.id == 1 && value.displayName.length <= 100 && value.country in setOf("IN", "OTHER"))
         require(value.palette in setOf("KINETIC", "DAYBOOK") && value.theme in setOf("SYSTEM", "LIGHT", "DARK"))
         require(value.textScale in 1f..2f && value.alertBudget in 0..5 && value.quietStart in 0..1439 && value.quietEnd in 0..1439)

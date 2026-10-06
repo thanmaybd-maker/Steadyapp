@@ -19,7 +19,12 @@ class PublicSafetyFailureTest {
         check(context.packageName.endsWith(".qa"))
         runBlocking { BootstrapStore(context).clear() }
     }
-    @After fun close() { scenario?.close(); runBlocking { BootstrapStore(context).clear() } }
+    @After fun close() {
+        scenario?.close()
+        check(context.packageName.endsWith(".qa"))
+        (context.applicationContext as SteadyApplication).container.deleteLocalData()
+        runBlocking { BootstrapStore(context).clear() }
+    }
     @Test fun organiserAndPrivateStoreFailureStillLeavePublicDialActionsVisible() {
         context.getDatabasePath("steady_encrypted.db").apply { parentFile!!.mkdirs(); writeBytes(byteArrayOf(1,2,3,4)) }
         context.getDatabasePath("steady_safety.db").apply { parentFile!!.mkdirs(); writeBytes(byteArrayOf(1,2,3,4)) }
@@ -36,8 +41,10 @@ class PublicSafetyFailureTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         compose.waitUntil(10000) { compose.onAllNodesWithText(context.getString(R.string.unlock_app)).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasText(context.getString(R.string.unlock_app)) and hasClickAction()).performScrollTo().performClick()
-        InstrumentationRegistry.getInstrumentation().uiAutomation.waitForIdle(200,5000)
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        compose.waitUntil(10000) { automation.rootInActiveWindow?.packageName?.let { it.toString() != context.packageName } == true }
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(10000) { runCatching { compose.onAllNodesWithText(context.getString(R.string.dial_emergency)).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false) }
         compose.onNode(hasText(context.getString(R.string.dial_emergency)) and hasClickAction()).performScrollTo().assertIsDisplayed()
         assertTrue(runBlocking { BootstrapStore(context).states.first().locked })
     }

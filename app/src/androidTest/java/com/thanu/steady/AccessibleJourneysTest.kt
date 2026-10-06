@@ -35,7 +35,7 @@ class AccessibleJourneysTest {
         repository = ExpandedRepository({ db },clock,preferences)
         runBlocking(Dispatchers.IO) { repository.saveProfile(ExpandedProfile(onboarded = true)); repository.prepareDay(LocalDate.parse("2026-01-05")) }
         model = ExpandedViewModel(repository,ActivityRepository({ db },{ ActivityClock(clock.millis(),1000,1) },preferences),preferences,
-            ActivityAlarmAdapter(context),NotificationAdapter(context),BootstrapStore(context),{ false })
+            ActivityAlarmAdapter(context),NotificationAdapter(context),BootstrapStore(context),PlatformSensors(context),AudioSoundscapeEngine(context),{ false })
         store.put("synthetic",model)
     }
     @After fun cleanup() {
@@ -90,7 +90,10 @@ class AccessibleJourneysTest {
         compose.waitForIdle()
         val saveNode = button(R.string.save_action).fetchSemanticsNode()
         try { button(R.string.save_action).assertIsDisplayed() } catch (failure: AssertionError) {
-            throw AssertionError("Save bounds root=${saveNode.boundsInRoot}, window=${saveNode.boundsInWindow}, screen=${compose.activity.resources.displayMetrics.heightPixels}; parent=${saveNode.parent?.boundsInRoot}",failure)
+            val frame = android.graphics.Rect()
+            compose.activity.window.decorView.getWindowVisibleDisplayFrame(frame)
+            val roots = compose.onAllNodes(isRoot(),useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }
+            throw AssertionError("Save root=${saveNode.boundsInRoot}, unclipped=${button(R.string.save_action).getUnclippedBoundsInRoot()}, window=${saveNode.boundsInWindow}; frame=$frame; roots=$roots",failure)
         }
         val height = button(R.string.save_action).fetchSemanticsNode().boundsInRoot.height
         assertTrue(height >= 56 * compose.activity.resources.displayMetrics.density - 1)
@@ -101,5 +104,24 @@ class AccessibleJourneysTest {
         button(R.string.dial_telemanas).performScrollTo().assertIsDisplayed()
         button(R.string.dial_emergency).performScrollTo().assertIsDisplayed()
         // Do not tap dial actions or capture Safety screenshots. Neither personal store is supplied.
+    }
+    @Test fun keyboardAndDoubleTextKeepSaveReachable() {
+        today(true)
+        button(R.string.add_task).performScrollTo().performClick()
+        field(R.string.task_title).performScrollTo().performClick().performTextInput("Synthetic keyboard draft")
+        button(R.string.save_action).performScrollTo().assertIsDisplayed()
+        field(R.string.task_title).performScrollTo().assertTextContains("Synthetic keyboard draft")
+        button(R.string.close_keep_draft).performScrollTo().assertIsDisplayed()
+    }
+    @Test fun customizedSummariesAndShortcutsPersistWithoutDuplicateMetrics() {
+        compose.setContent { SteadyTheme {
+            val state by model.state.collectAsState()
+            if(state.period != null) DashboardSettingsEditor(model,state,{}, {})
+        } }
+        compose.waitUntil(10000) { model.state.value.period != null }
+        field(R.string.water_quick_quantities).performScrollTo().performTextReplacement("125,375")
+        button(R.string.save_action).performScrollTo().performClick()
+        compose.waitUntil(10000) { model.state.value.period?.profile?.waterQuickMl == "125,375" && !model.state.value.busy }
+        runBlocking(Dispatchers.IO) { assertEquals("125,375",repository.profile().waterQuickMl) }
     }
 }

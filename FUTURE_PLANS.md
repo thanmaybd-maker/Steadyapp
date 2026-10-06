@@ -15,21 +15,32 @@ scope. Continue the existing native project and preserve its records and Git his
 - `e082f01`: organiser-only typed portable recovery, scope preview, date/category Markdown,
   Safety contact editor and historical-zone corrections. Host build/unit/lint/test packaging passed.
   Acceptance evidence lives in `docs/evidence/`; code existing is not the same as every criterion passing.
+- `862b8d1`: interval/rest/template workflows, encrypted private drafts, reminders,
+  editable care/routines, reviewed food references and draft/export corrections.
+- Subsequent personalization/inset work: three selectable summaries, water shortcuts,
+  Review visibility, time chart/list and persistent Add; explicit organiser migration
+  4→5; offline notices and QA-only provider. Host checks passed 27 unit tests with
+  zero lint errors; all 27 isolated device checks passed in 40.605 seconds.
 
 ## Complete expanded P0 acceptance
 
-1. Finish routine anchors, editable Minimum suggestions, dashboard card sizing, subject/topic tools,
-   interval/strength templates and rest timers. Persist configuration and actual history.
-2. Finish reminders with quiet hours, a maximum optional daily budget, Pause suppression and no catch-up.
-   Preserve exact care instructions. Finish contextual cue settings and Pocket Reset next-action editing.
-3. Add editable bundled food references with reviewed provenance, and expose capability states clearly.
+1. Verify the implemented routine/card/subject/topic/interval/strength/rest workflows across
+   all essential journeys. Finish optional onboarding templates and ordered exercise controls.
+2. Verify quiet hours/budget/Pause/no-catch-up on-device. Finish the documented locked-background
+   cue contract and contextual cue handling. Pocket Reset next-action editing is implemented.
+3. Verify editable bundled food/reference and capability states, alongside shortcut/log corrections.
 4. Complete draft/process recreation, authentication cancellation, storage/key failures, local deletion,
-   provider cancellation/failure and migration scenarios. Private Safety must remain structurally excluded.
+   provider cancellation/failure and migration scenarios. The 27-test isolated QA suite now passes;
+   broader real-provider/process/window scenarios remain. Safety stays structurally excluded.
 5. Verify exact totals, history corrections, archived habits, note export and interrupted restore.
 6. Run synthetic Compose/device accessibility checks, maximum text, TalkBack, theme contrast,
    screen-off/Doze/denial/revocation/clock/reboot scenarios and ten-year data/performance measurements.
-7. Freeze release identity, licences, no-INTERNET manifest, native/page alignment, clean build,
+7. Finish release identity, no-INTERNET manifest, clean build,
    artifact hash and install/update evidence. Reconcile every source point before declaring P0 complete.
+   Notices/82-artifact inventory and actual ZIP/ELF 16 KiB alignment are implemented/checked.
+
+Use `docs/evidence/spec2-acceptance.md` for the remaining acceptance ledger. Source indexing
+keeps all 527 points and distinguishes mapped requirements from demonstrated acceptance.
 
 ## P1 capability gates
 

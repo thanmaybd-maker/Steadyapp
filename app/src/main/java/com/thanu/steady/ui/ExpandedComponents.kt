@@ -7,7 +7,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
@@ -20,8 +27,35 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.thanu.steady.R
 
+/** Full-screen dialog windows on some OEMs do not dispatch Compose system insets. */
+@Composable fun DialogSurface(content: @Composable () -> Unit) {
+    val view = LocalView.current
+    val density = LocalDensity.current
+    var safe by remember(view,density) { mutableStateOf(PaddingValues()) }
+    DisposableEffect(view,density) {
+        val root = view.rootView
+        fun update() {
+            val visible = android.graphics.Rect()
+            val location = IntArray(2)
+            root.getWindowVisibleDisplayFrame(visible)
+            root.getLocationOnScreen(location)
+            if(root.width > 0 && root.height > 0 && !visible.isEmpty) safe = with(density) {
+                PaddingValues.Absolute(left = maxOf(0,visible.left-location[0]).toDp(),
+                    top = maxOf(0,visible.top-location[1]).toDp(),
+                    right = maxOf(0,location[0]+root.width-visible.right).toDp(),
+                    bottom = maxOf(0,location[1]+root.height-visible.bottom).toDp())
+            }
+        }
+        val listener = android.view.ViewTreeObserver.OnGlobalLayoutListener { update() }
+        root.viewTreeObserver.addOnGlobalLayoutListener(listener)
+        update()
+        onDispose { if(root.viewTreeObserver.isAlive) root.viewTreeObserver.removeOnGlobalLayoutListener(listener) }
+    }
+    Surface(Modifier.fillMaxSize().padding(safe).consumeWindowInsets(safe),content = content)
+}
+
 @Composable fun ExpandedPage(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).imePadding().padding(20.dp),
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).imePadding().padding(start = 20.dp,end = 20.dp,top = 20.dp,bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp), content = content)
 }
 val LocalRoomyCard = staticCompositionLocalOf { true }
@@ -49,7 +83,8 @@ val LocalRoomyCard = staticCompositionLocalOf { true }
     choices.forEach { (key, label) ->
         OutlinedButton(onClick = { onChange(key) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             colors = ButtonDefaults.outlinedButtonColors(containerColor = if (key == value)
-                MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) {
+                MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                contentColor = if(key == value) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary)) {
             Text(stringResource(if (key == value) R.string.selected_choice else R.string.available_choice, stringResource(label)))
         }
     }
@@ -74,7 +109,11 @@ val LocalRoomyCard = staticCompositionLocalOf { true }
                 if (value != null && target != null && target > 0) drawArc(primary, -90f,
                     ((value / target).coerceIn(0.0, 1.0) * 360).toFloat(), false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
             }
-            Column(Modifier.weight(1f)) { Text(stringResource(title), style = MaterialTheme.typography.titleMedium); Text(summary) }
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(title), style = MaterialTheme.typography.titleMedium); Text(summary)
+                if(target != null && value != null) Text(stringResource(R.string.metric_goal_value,value,target))
+                else if(value != null) Text(stringResource(R.string.no_optional_target))
+            }
         }
     }
 }

@@ -28,7 +28,7 @@ class CompletionWorkflowTest {
     private fun db(): SteadyDatabase {
         val name = "completion-${id()}.db"; names += name
         return Room.databaseBuilder(context,SteadyDatabase::class.java,name).openHelperFactory(SupportOpenHelperFactory(key.copyOf()))
-            .addMigrations(SteadyDatabase.MIGRATION_1_2,SteadyDatabase.MIGRATION_2_3,EXPANDED_MIGRATION_3_4).build().also(open::add)
+            .addMigrations(SteadyDatabase.MIGRATION_1_2,SteadyDatabase.MIGRATION_2_3,EXPANDED_MIGRATION_3_4,PERSONALIZATION_MIGRATION_4_5).build().also(open::add)
     }
     private fun safe(name: String): PrivateSafetyDatabase = Room.databaseBuilder(context,PrivateSafetyDatabase::class.java,name)
         .openHelperFactory(SupportOpenHelperFactory(key.copyOf())).addMigrations(SAFETY_MIGRATION_1_2).build().also(open::add)

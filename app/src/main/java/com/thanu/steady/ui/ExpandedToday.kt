@@ -34,7 +34,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
 }
 
 @Composable fun ExpandedToday(model: ExpandedViewModel, state: ExpandedUiState, onSafety: () -> Unit,
-    onFocus: () -> Unit, onHealth: () -> Unit) {
+    onFocus: () -> Unit, onHealth: () -> Unit, quickAction: String? = null, onQuickActionHandled: () -> Unit = {}) {
     val period = state.period ?: return
     val day = period.end
     val daySettings = period.days.firstOrNull { it.day == day.toString() }
@@ -45,6 +45,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
     var undoneTask by remember { mutableStateOf<PlanItem?>(null) }
     var lastHabitLog by remember { mutableStateOf<String?>(null) }
     var optionalShown by remember { mutableStateOf(false) }
+    LaunchedEffect(quickAction) { if(quickAction != null) { editedTask = null; editedHabit = null; editor = quickAction; onQuickActionHandled() } }
     val visibleTasks = period.tasks.filter { it.state != "ARCHIVED" && (mode == "NORMAL" || optionalShown || it.essential) }
     val versions = period.versions.associateBy { it.id }
     val occurrences = period.occurrences.filter { mode == "NORMAL" || optionalShown || versions[it.versionId]?.essential == true }
@@ -72,34 +73,33 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
                 SecondaryAction(R.string.pocket_reset) { editor = "reset" }
             }
             "RINGS" -> if (mode != "PAUSED") SectionCard(R.string.today_summaries) {
-                val steps = period.observations.filter { it.steps != null && it.source == "PHONE_STEP_COUNTER" }
-                val stepValue = steps.takeIf { it.isNotEmpty() }?.sumOf { it.steps ?: 0 }
-                MetricRing(R.string.steps_metric, stepValue?.toDouble(), period.profile.stepTarget?.toDouble(),
-                    if (stepValue == null) stringResource(R.string.steps_unavailable) else stringResource(R.string.steps_observed, stepValue), onHealth)
-                val minutes = focusMillis(period) / 60_000.0
-                MetricRing(R.string.focus_metric, minutes, period.profile.focusTargetMinutes?.toDouble(),
-                    stringResource(R.string.focus_actual_minutes, minutes), onFocus)
-                val eligible = occurrences.filter { it.state != "SKIPPED" }
-                val done = eligible.count { it.state == "COMPLETED" }
-                MetricRing(R.string.habits_metric, done.toDouble(), eligible.size.takeIf { it > 0 }?.toDouble(),
-                    if (eligible.isEmpty()) stringResource(R.string.no_habits_due) else stringResource(R.string.habits_count, done, eligible.size)) { editor = "habit" }
+                DashboardMetrics(period,onFocus,onHealth) { editor = "habit" }
             }
             "TIMELINE" -> if ("PLAN" in period.profile.modules.split(',')) SectionCard(R.string.timeline_title) {
                 PrimaryAction(R.string.add_task) { editedTask = null; editor = "task" }
+                TaskTimeline(period.copy(tasks = visibleTasks),onFocus,onHealth)
                 if (visibleTasks.isEmpty()) Text(stringResource(R.string.empty_tasks))
-                visibleTasks.sortedWith(compareBy<PlanItem> { it.timeMinutes ?: 1440 }.thenBy { it.position }).forEach { task ->
-                    Text(task.title, style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(stateLabel(task.state)))
-                    task.timeMinutes?.let { Text(stringResource(R.string.planned_time, "%02d:%02d".format(java.util.Locale.ROOT, it / 60, it % 60))) }
-                    task.plannedSeconds?.let { Text(stringResource(R.string.planned_minutes, it / 60.0)) }
-                    PrimaryAction(if (task.state == "COMPLETED") R.string.undo_complete else R.string.complete_task, !state.busy) { model.action({ model.repository.toggleTask(task.id) }) }
-                    SecondaryAction(R.string.edit_reschedule) { editedTask = task; editor = "task" }
-                    SecondaryAction(R.string.start_task_focus, !state.busy) {
-                        if (period.active.isNotEmpty()) onFocus() else model.start("FOCUS", if (task.category == "BUILD") "BUILD" else "STUDY", task.title,
-                            task.plannedSeconds ?: 1500, 300, task.subjectId, task.id, onFocus)
+                visibleTasks.sortedWith(compareBy<PlanItem> { item -> item.timeMinutes?.let { time -> Math.floorMod(time-item.boundary,1440) } ?: 1440 }.thenBy { it.position }).forEach { task ->
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = true,
+                        enter = androidx.compose.animation.expandVertically(animationSpec = androidx.compose.animation.core.tween(240)) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(240)),
+                        exit = androidx.compose.animation.shrinkVertically(animationSpec = androidx.compose.animation.core.tween(160)) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(160))
+                    ) {
+                        Column {
+                            Text(task.title, style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(stateLabel(task.state)))
+                            task.timeMinutes?.let { Text(stringResource(R.string.planned_time, "%02d:%02d".format(java.util.Locale.ROOT, it / 60, it % 60))) }
+                            task.plannedSeconds?.let { Text(stringResource(R.string.planned_minutes, it / 60.0)) }
+                            PrimaryAction(if (task.state == "COMPLETED") R.string.undo_complete else R.string.complete_task, !state.busy) { model.action({ model.repository.toggleTask(task.id) }) }
+                            SecondaryAction(R.string.edit_reschedule) { editedTask = task; editor = "task" }
+                            SecondaryAction(R.string.start_task_focus, !state.busy) {
+                                if (period.active.isNotEmpty()) onFocus() else model.start("FOCUS", if (task.category == "BUILD") "BUILD" else "STUDY", task.title,
+                                    task.plannedSeconds ?: 1500, 300, task.subjectId, task.id, onFocus)
+                            }
+                            SecondaryAction(R.string.delete_action, !state.busy) { model.action({ model.repository.deleteTask(task.id) }, after = { undoneTask = task }) }
+                            HorizontalDivider()
+                        }
                     }
-                    SecondaryAction(R.string.delete_action, !state.busy) { model.action({ model.repository.deleteTask(task.id) }, after = { undoneTask = task }) }
-                    HorizontalDivider()
                 }
                 undoneTask?.let { task -> SecondaryAction(R.string.undo_delete, !state.busy) { model.action({ model.repository.saveTask(task) }, after = { undoneTask = null }) } }
             }
@@ -173,8 +173,8 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
     val drafts by model.drafts.collectAsState()
     val form = drafts[key] ?: initial
     val savedClose = { model.clearDraft(key); onClose() }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) { ExpandedPage {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogSurface { ExpandedPage {
             SecondaryAction(R.string.safety_action, onClick = onSafety)
             SecondaryAction(R.string.close_keep_draft, onClick = onClose)
             SectionCard(title) { StateMessages(state); body(form, savedClose) }
@@ -253,8 +253,8 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
     var next by remember { mutableStateOf("") }
     val state by model.state.collectAsState()
     val labels = listOf(R.string.reset_pause, R.string.reset_breathe, R.string.reset_next)
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) { ExpandedPage {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogSurface { Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) { ExpandedPage {
             SecondaryAction(R.string.safety_action, onClick = onSafety)
             SectionCard(labels[step]) {
                 Text(stringResource(R.string.reset_optional))
@@ -269,6 +269,6 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
                 SecondaryAction(R.string.skip_step) { if (step == 2) onClose() else step++ }
                 SecondaryAction(R.string.close_action, onClick = onClose)
             }
-        } }
+        } } }
     }
 }

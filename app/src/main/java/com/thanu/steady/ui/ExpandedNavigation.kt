@@ -27,7 +27,9 @@ import com.thanu.steady.di.AppContainer
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
             return ExpandedViewModel(container.expandedRepository, container.activityRepository, container.preferencesRepository,
-                container.activityAlarms, container.notificationAdapter, container.bootstrap, { container.isForeground },
+                container.activityAlarms, container.notificationAdapter, container.bootstrap,
+                container.platformSensors, container.audioSoundscapeEngine,
+                { container.isForeground },
                 { container.routineReminders.refresh() }, { container.timerRepository.reconcile(true).forEach { container.alarmAdapter.cancelAlarm(it.id) } }) as T
         }
     })
@@ -51,9 +53,27 @@ import com.thanu.steady.di.AppContainer
     val largeText = LocalDensity.current.fontScale > 1.4f
     val wide = LocalConfiguration.current.screenWidthDp >= 600 && !largeText
     var chooseTab by remember { mutableStateOf(false) }
+    var addMenu by remember { mutableStateOf(false) }
+    var quickAction by rememberSaveable { mutableStateOf<String?>(null) }
     Scaffold(topBar = {
+        if(largeText) Column(Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp)) {
+            Text(stringResource(tabs.firstOrNull { it.first == tab }?.second ?: R.string.app_name),style = MaterialTheme.typography.titleLarge)
+            SecondaryAction(R.string.safety_action) { privateSafety = true }
+        } else
         TopAppBar(title = { Text(stringResource(tabs.firstOrNull { it.first == tab }?.second ?: R.string.app_name)) },
             actions = { TextButton(onClick = { privateSafety = true }, modifier = Modifier.heightIn(min = 56.dp)) { Text(stringResource(R.string.safety_action)) } })
+    }, floatingActionButton = {
+        if(profile?.onboarded == true) Box {
+            FloatingActionButton(onClick = { addMenu = true },modifier = Modifier.sizeIn(minWidth = 56.dp,minHeight = 56.dp)) { Text(stringResource(R.string.add_menu)) }
+            DropdownMenu(addMenu,{ addMenu = false }) {
+                listOf(Triple("today","task",R.string.add_task),Triple("today","habit",R.string.add_habit),
+                    Triple("today","capture",R.string.capture_idea),Triple("health","workout",R.string.start_workout),
+                    Triple("health","water",R.string.log_water),Triple("health","sleep",R.string.log_sleep)).forEach { (route,action,label) ->
+                    DropdownMenuItem(text = { Text(stringResource(label)) },modifier = Modifier.heightIn(min = 56.dp),
+                        onClick = { addMenu = false; quickAction = action; navigate(route) })
+                }
+            }
+        }
     }, bottomBar = {
         if (largeText) {
             Column(Modifier.padding(8.dp)) {
@@ -79,11 +99,18 @@ import com.thanu.steady.di.AppContainer
             else if (profile == null) ExpandedPage { StateMessages(state); PublicSafetyPanel(access.bootstrap.country); SecondaryAction(R.string.retry) { model.reload() } }
             else if (!profile.onboarded) ExpandedOnboarding(model, state, safety)
             else NavHost(nav, startDestination = "today") {
-                composable("today") { LaunchedEffect(Unit) { model.reload() }; ExpandedToday(model, state, safety, { navigate("focus") }, { navigate("health") }) }
-                composable("health") { LaunchedEffect(Unit) { model.reload() }; ExpandedHealth(model, state, safety) }
+                composable("today") { LaunchedEffect(Unit) { model.reload() }; ExpandedToday(model, state, safety, { navigate("focus") }, { navigate("health") },quickAction) { quickAction = null } }
+                composable("health") { LaunchedEffect(Unit) { model.reload() }; ExpandedHealth(model, state, safety,quickAction) { quickAction = null } }
                 composable("focus") { LaunchedEffect(Unit) { model.reload() }; ExpandedFocus(model, state, safety) }
                 composable("review") { ExpandedReview(model, state, safety) }
                 composable("settings") { ExpandedSettings(model, state, container, access, onAuthentication, safety) }
+                composable("usage_insights") {
+                    ExpandedUsageInsights(appDurations = mapOf("com.example.distractingapp" to 1200000L)) { nav.popBackStack() }
+                }
+                composable("learn_build") { ExpandedLearnBuildModules() }
+                composable("people") { ExpandedPeople() }
+                composable("money_guard") { ExpandedMoneyGuard() }
+                composable("voice_ocr") { ExpandedVoiceOcr() }
                 composable("safety") {
                     val safetyModel: SafetyViewModel = viewModel(factory = object : ViewModelProvider.Factory {
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -96,21 +123,22 @@ import com.thanu.steady.di.AppContainer
         }
         }
     }
-    if (privateSafety) Dialog(onDismissRequest = { privateSafety = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    if (privateSafety) Dialog(onDismissRequest = { privateSafety = false }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false,
+        securePolicy = androidx.compose.ui.window.SecureFlagPolicy.SecureOn)) {
         val safetyModel: SafetyViewModel = viewModel(key = "global_private_safety", factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST") return SafetyViewModel(container.privateSafetyRepository,container.clock) as T
             }
         })
-        Surface(Modifier.fillMaxSize()) {
-            Column { SecondaryAction(R.string.close_action) { privateSafety = false }; Box(Modifier.weight(1f)) { SafetyScreen(safetyModel,access.bootstrap.country) } }
+        DialogSurface {
+            Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) { SecondaryAction(R.string.close_action) { privateSafety = false }; Box(Modifier.weight(1f)) { SafetyScreen(safetyModel,access.bootstrap.country) } }
         }
     }
-    if (publicSafety) Dialog(onDismissRequest = { publicSafety = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) { ExpandedPage {
+    if (publicSafety) Dialog(onDismissRequest = { publicSafety = false }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogSurface { Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) { ExpandedPage {
             SecondaryAction(R.string.close_action) { publicSafety = false }
             PublicSafetyPanel(access.bootstrap.country)
-        } }
+        } } }
     }
 }
 

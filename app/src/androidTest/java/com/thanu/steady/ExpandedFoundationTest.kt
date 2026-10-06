@@ -28,7 +28,7 @@ class ExpandedFoundationTest {
         if (name !in names) names += name
         return Room.databaseBuilder(context, SteadyDatabase::class.java, name)
             .openHelperFactory(SupportOpenHelperFactory(key.copyOf()))
-            .addMigrations(SteadyDatabase.MIGRATION_1_2, SteadyDatabase.MIGRATION_2_3, EXPANDED_MIGRATION_3_4)
+            .addMigrations(SteadyDatabase.MIGRATION_1_2, SteadyDatabase.MIGRATION_2_3, EXPANDED_MIGRATION_3_4,PERSONALIZATION_MIGRATION_4_5)
             .build().also(databases::add)
     }
     @After fun cleanup() { databases.forEach { it.close() }; names.forEach { context.deleteDatabase(it) } }
@@ -55,7 +55,7 @@ class ExpandedFoundationTest {
         val upgraded = db(name)
         assertTrue(upgraded.preferencesDao().get()!!.pauseEnabled)
         assertEquals("Synthetic avoidance", upgraded.preferencesDao().get()!!.avoidFoods)
-        assertEquals(4, upgraded.openHelper.readableDatabase.version)
+        assertEquals(5, upgraded.openHelper.readableDatabase.version)
         assertNull(upgraded.expandedDao().profile())
         assertTrue(upgraded.expandedDao().water("2026-01-01", "2026-01-31").isEmpty())
     }
@@ -75,6 +75,37 @@ class ExpandedFoundationTest {
         assertNotNull(repository.complete(next.id, next.generation))
         assertNull(repository.complete(next.id, next.generation))
         assertEquals(60_000L, database.expandedDao().session(next.id)!!.activeMillis)
+    }
+
+    @Test fun frozenSchemaFourRetainsOwnerConfigurationAndRecordsDuringPersonalizationUpgrade() = runBlocking {
+        val name = "personalization-migration-${UUID.randomUUID()}.db"; names += name
+        val schema = JSONObject(InstrumentationRegistry.getInstrumentation().context.assets.open("schemas/4.json").bufferedReader().use { it.readText() }).getJSONObject("database")
+        val helper = SupportOpenHelperFactory(key.copyOf()).create(SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(name).callback(object : SupportSQLiteOpenHelper.Callback(4) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    val entities = schema.getJSONArray("entities")
+                    for(i in 0 until entities.length()) {
+                        val entity = entities.getJSONObject(i)
+                        db.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}",entity.getString("tableName")))
+                        val indices = entity.getJSONArray("indices")
+                        for(j in 0 until indices.length()) db.execSQL(indices.getJSONObject(j).getString("createSql").replace("\${TABLE_NAME}",entity.getString("tableName")))
+                    }
+                }
+                override fun onUpgrade(db: androidx.sqlite.db.SupportSQLiteDatabase,old: Int,new: Int) { error("Unexpected fixture upgrade") }
+            }).build())
+        helper.writableDatabase.execSQL("INSERT INTO expanded_profile (id,displayName,onboarded,country,palette,theme,highContrast,reducedMotion,textScale,modules,dashboard,wideCards,quietStart,quietEnd,alertBudget,dateStyle,zoneMode) VALUES (1,'Synthetic owner',1,'IN','DAYBOOK','DARK',1,1,1.25,'PLAN,WATER','NEXT,TIMELINE','NEXT',1320,420,3,'ISO','FIXED')")
+        helper.writableDatabase.execSQL("INSERT INTO water_log (id,day,millilitres,at,zone,boundary,source) VALUES ('${UUID.randomUUID()}','2026-01-05',375,1,'UTC',240,'USER')")
+        helper.close()
+        val upgraded = db(name)
+        assertEquals(5,upgraded.openHelper.readableDatabase.version)
+        val profile = upgraded.expandedDao().profile()!!
+        assertEquals("Synthetic owner",profile.displayName); assertEquals("DAYBOOK",profile.palette)
+        assertEquals("NEXT,TIMELINE",profile.dashboard); assertEquals("STEPS,FOCUS,HABITS",profile.ringMetrics)
+        assertEquals("100,250,500",profile.waterQuickMl); assertEquals("ML",profile.waterUnit)
+        assertEquals(375,upgraded.expandedDao().water("2026-01-05","2026-01-05").single().millilitres)
+        upgraded.openHelper.readableDatabase.query("PRAGMA cipher_version").use { cursor ->
+            assertTrue(cursor.moveToFirst()); assertTrue(cursor.getString(0).startsWith("4.9.0"))
+        }
     }
 
     @Test fun habitLogIsIdempotentAndRenamingPreservesCompletedSnapshot() = runBlocking {

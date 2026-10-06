@@ -22,6 +22,9 @@ import com.thanu.steady.di.AppContainer
     var goals by remember { mutableStateOf(false) }
     var personal by remember { mutableStateOf(false) }
     var reminders by remember { mutableStateOf(false) }
+    var notices by remember { mutableStateOf(false) }
+    var summaries by remember { mutableStateOf(false) }
+    if(notices) { LicensesScreen({ notices = false },onSafety); return }
     if (files) {
         val settingsModel: SettingsViewModel = viewModel(factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -47,6 +50,7 @@ import com.thanu.steady.di.AppContainer
             ToggleRow(R.string.larger_text, profile.textScale > 1f) { model.updateProfile(profile.copy(textScale = if (it) 1.25f else 1f)) }
         }
         SectionCard(R.string.modules_title) {
+            SecondaryAction(R.string.summary_preferences) { summaries = true }
             val enabled = profile.modules.split(',').toSet()
             listOf("PLAN" to R.string.plan_module, "HABITS" to R.string.habits_title, "FOCUS" to R.string.focus_tab,
                 "MOVEMENT" to R.string.movement_title, "FOOD" to R.string.food_title, "WATER" to R.string.water_title, "SLEEP" to R.string.sleep_title).forEach { (id, label) ->
@@ -67,6 +71,9 @@ import com.thanu.steady.di.AppContainer
         }
         SectionCard(R.string.time_settings) {
             Text(period.preferences.zoneId)
+            ToggleRow(R.string.follow_device_zone,profile.zoneMode == "DEVICE") { enabled -> model.action({
+                model.repository.saveProfile(profile.copy(zoneMode = if(enabled) "DEVICE" else "FIXED"))
+            },after = { model.reload() }) }
             SecondaryAction(R.string.edit_time_policy) { timeEditor = true }
             SecondaryAction(R.string.edit_optional_targets) { goals = true }
             Text(stringResource(R.string.historical_policy_notice))
@@ -93,9 +100,11 @@ import com.thanu.steady.di.AppContainer
             Text(stringResource(R.string.no_demo_records))
             Text(stringResource(R.string.technical_diagnostics),style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.diagnostics_description))
+            SecondaryAction(R.string.third_party_notices) { notices = true }
             SecondaryAction(R.string.safety_action, onClick = onSafety)
         }
     }
+    if(summaries) DashboardSettingsEditor(model,state,onSafety) { summaries = false }
     if(personal) DraftEditor(model,state,"profile",R.string.profile_settings,mapOf("name" to profile.displayName,"country" to profile.country,"date" to profile.dateStyle),onSafety,{ personal = false }) { values,close ->
         TextInput(values["name"].orEmpty(),R.string.display_name,{ model.field("profile","name",it) })
         ChoiceList(values["country"] ?: "IN",listOf("IN" to R.string.country_india,"OTHER" to R.string.country_other)) { model.field("profile","country",it) }
@@ -111,7 +120,8 @@ import com.thanu.steady.di.AppContainer
         TextInput(values["zone"].orEmpty(), R.string.timezone, { model.field("time_policy", "zone", it) })
         TextInput(values["boundary"].orEmpty(), R.string.day_boundary, { model.field("time_policy", "boundary", it) })
         PrimaryAction(R.string.save_action, !state.busy) { model.action({ val time = java.time.LocalTime.parse(values["boundary"]!!)
-            model.setTimePolicy(values["zone"]!!, time.hour*60+time.minute) }, after = { close(); model.reload() }) }
+            model.setTimePolicy(values["zone"]!!, time.hour*60+time.minute)
+            model.repository.saveProfile(profile.copy(zoneMode = "FIXED")) }, after = { close(); model.reload() }) }
     }
     if (goals) DraftEditor(model, state, "optional_targets", R.string.edit_optional_targets, mapOf("focus" to (profile.focusTargetMinutes?.toString() ?: ""),
         "water" to (profile.waterTargetMl?.toString() ?: ""), "steps" to (profile.stepTarget?.toString() ?: ""), "avoid" to period.preferences.avoidFoods,

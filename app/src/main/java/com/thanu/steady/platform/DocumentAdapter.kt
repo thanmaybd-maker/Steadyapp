@@ -38,7 +38,7 @@ class DocumentAdapter(private val context: Context) {
                 while (true) {
                     val count = it.read(buffer)
                     if (count < 0) break
-                    if (output.size().toLong() + count > com.thanu.steady.domain.BackupService.MAX_ARCHIVE_BYTES) return null
+                    if (output.size().toLong() + count > com.thanu.steady.data.PortableCodec.MAX_BYTES.toLong() + 60) return null
                     output.write(buffer, 0, count)
                 }
                 output.toByteArray()

@@ -35,7 +35,7 @@ class EncryptedRecoveryTest {
         if (name !in names) names += name
         return Room.databaseBuilder(context, SteadyDatabase::class.java, name)
             .openHelperFactory(SupportOpenHelperFactory(secret.copyOf()))
-            .addMigrations(SteadyDatabase.MIGRATION_1_2, SteadyDatabase.MIGRATION_2_3, EXPANDED_MIGRATION_3_4).build().also(open::add)
+            .addMigrations(SteadyDatabase.MIGRATION_1_2, SteadyDatabase.MIGRATION_2_3, EXPANDED_MIGRATION_3_4,PERSONALIZATION_MIGRATION_4_5).build().also(open::add)
     }
     private fun plan(text: String = "SYNTHETIC_ORGANISER_CANARY") = DailyPlanEntity(day,
         ZoneId.of("Asia/Kolkata"), 240, DayMode.MINIMUM, "", text, "Synthetic build", "Synthetic next",

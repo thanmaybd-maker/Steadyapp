@@ -1,0 +1,176 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="800dp"
+    android:height="450dp"
+    android:viewportWidth="800"
+    android:viewportHeight="450">
+
+    <!-- Sky Gradient: Sunrise over tranquil mountain lake -->
+    <path
+        android:pathData="M0,0h800v450h-800z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="0"
+                android:endX="400"
+                android:endY="260"
+                android:type="linear">
+                <item android:color="#FF0F172A" android:offset="0.0" />
+                <item android:color="#FF1E293B" android:offset="0.25" />
+                <item android:color="#FF334155" android:offset="0.5" />
+                <item android:color="#FFD97706" android:offset="0.82" />
+                <item android:color="#FFFDE68A" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Glowing Sun Disc behind mountains -->
+    <path
+        android:pathData="M400,200m-50,0a50,50 0 1,0 100,0a50,50 0 1,0 -100,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="150"
+                android:endX="400"
+                android:endY="250"
+                android:type="linear">
+                <item android:color="#FFFDF2B0" android:offset="0.0" />
+                <item android:color="#FFF59E0B" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Distant Mountain Silhouette -->
+    <path
+        android:pathData="M0,230 L110,165 L220,225 L340,140 L450,220 L570,150 L680,215 L800,160 L800,290 L0,290 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="140"
+                android:endX="400"
+                android:endY="280"
+                android:type="linear">
+                <item android:color="#80334155" android:offset="0.0" />
+                <item android:color="#B31E293B" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Midground Ridge Mountain Silhouette -->
+    <path
+        android:pathData="M0,245 L80,205 L180,245 L290,185 L390,235 L490,195 L610,245 L710,190 L800,230 L800,310 L0,310 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="185"
+                android:endX="400"
+                android:endY="310"
+                android:type="linear">
+                <item android:color="#E61E293B" android:offset="0.0" />
+                <item android:color="#FF0F172A" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Reflective Calm Alpine Lake -->
+    <path
+        android:pathData="M0,270h800v180h-800z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="270"
+                android:endX="400"
+                android:endY="450"
+                android:type="linear">
+                <item android:color="#FF1E293B" android:offset="0.0" />
+                <item android:color="#FF0F2B3E" android:offset="0.4" />
+                <item android:color="#FF0B192C" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Water Sun Glow Reflection -->
+    <path
+        android:pathData="M350,270 L450,270 L480,380 L320,380 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="270"
+                android:endX="400"
+                android:endY="380"
+                android:type="linear">
+                <item android:color="#4DFDE68A" android:offset="0.0" />
+                <item android:color="#1AD97706" android:offset="0.6" />
+                <item android:color="#00000000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Water Ripple Shimmers -->
+    <path
+        android:fillColor="#33FDE68A"
+        android:pathData="M340,285h120v1.5h-120z M310,298h180v2h-180z M280,314h240v2h-240z M250,332h300v2.5h-300z M220,355h360v3h-360z M180,382h440v3.5h-440z" />
+
+    <!-- Left Foreground Pine Trees Dense Silhouette -->
+    <!-- Tree 1 -->
+    <path
+        android:fillColor="#FF061E14"
+        android:pathData="M45,180 L70,225 L62,225 L85,270 L75,270 L100,320 L10,320 L35,270 L25,270 L48,225 L40,225 Z" />
+    <!-- Tree 2 -->
+    <path
+        android:fillColor="#FF09261A"
+        android:pathData="M110,150 L140,205 L130,205 L155,255 L145,255 L175,310 L45,310 L75,255 L65,255 L90,205 L80,205 Z" />
+    <!-- Tree 3 -->
+    <path
+        android:fillColor="#FF0B3021"
+        android:pathData="M175,200 L198,240 L190,240 L210,278 L202,278 L225,320 L125,320 L148,278 L140,278 L160,240 L152,240 Z" />
+    <!-- Small trees left -->
+    <path
+        android:fillColor="#FF0D3827"
+        android:pathData="M230,240 L248,270 L242,270 L258,300 L202,300 L218,270 L212,270 Z" />
+
+    <!-- Right Foreground Pine Trees Dense Silhouette -->
+    <!-- Tree 4 -->
+    <path
+        android:fillColor="#FF061E14"
+        android:pathData="M755,160 L780,210 L772,210 L795,260 L715,260 L738,210 L730,210 Z" />
+    <!-- Tree 5 -->
+    <path
+        android:fillColor="#FF09261A"
+        android:pathData="M690,140 L720,200 L710,200 L735,255 L725,255 L755,315 L625,315 L655,255 L645,255 L670,200 L660,200 Z" />
+    <!-- Tree 6 -->
+    <path
+        android:fillColor="#FF0B3021"
+        android:pathData="M615,190 L638,235 L630,235 L652,278 L644,278 L668,322 L562,322 L586,278 L578,278 L600,235 L592,235 Z" />
+    <!-- Small trees right -->
+    <path
+        android:fillColor="#FF0D3827"
+        android:pathData="M565,235 L582,268 L576,268 L592,300 L538,300 L554,268 L548,268 Z" />
+
+    <!-- Foreground Rocky Shoreline / Island Ground -->
+    <path
+        android:pathData="M0,380 Q140,360 280,390 Q400,410 520,385 Q660,365 800,390 L800,450 L0,450 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="365"
+                android:endX="400"
+                android:endY="450"
+                android:type="linear">
+                <item android:color="#FF0B1A13" android:offset="0.0" />
+                <item android:color="#FF030A07" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Foreground Rocks & Moss highlights -->
+    <path
+        android:fillColor="#3310B981"
+        android:pathData="M60,405 C90,395 120,402 140,415 C110,420 80,418 60,405 Z M640,400 C670,390 710,398 730,412 C700,416 660,414 640,400 Z" />
+
+    <!-- Flying birds in distant sky -->
+    <path
+        android:fillColor="#80FFFFFF"
+        android:pathData="M260,110 Q268,105 276,110 Q284,105 292,110 Q284,108 276,113 Q268,108 260,110 Z M295,95 Q302,90 309,95 Q316,90 323,95 Q316,93 309,97 Q302,93 295,95 Z M240,125 Q246,121 252,125 Q258,121 264,125 Q258,123 252,127 Q246,123 240,125 Z" />
+
+</vector>

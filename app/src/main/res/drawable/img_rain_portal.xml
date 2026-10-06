@@ -1,0 +1,113 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="800dp"
+    android:height="450dp"
+    android:viewportWidth="800"
+    android:viewportHeight="450">
+
+    <!-- Deep Moody Twilight Rain Sky -->
+    <path
+        android:pathData="M0,0h800v450h-800z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="0"
+                android:endX="400"
+                android:endY="300"
+                android:type="linear">
+                <item android:color="#FF09111E" android:offset="0.0" />
+                <item android:color="#FF132338" android:offset="0.4" />
+                <item android:color="#FF1E3A5F" android:offset="0.8" />
+                <item android:color="#FF2D5584" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Moody Cloud Layer -->
+    <path
+        android:pathData="M0,80 Q200,40 400,90 Q600,50 800,85 L800,0 L0,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="0"
+                android:endX="400"
+                android:endY="90"
+                android:type="linear">
+                <item android:color="#99050B14" android:offset="0.0" />
+                <item android:color="#00000000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Distant Misty Mountain Ridge in Downpour -->
+    <path
+        android:pathData="M0,210 L150,160 L320,220 L480,150 L640,210 L800,165 L800,310 L0,310 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="150"
+                android:endX="400"
+                android:endY="310"
+                android:type="linear">
+                <item android:color="#6619324C" android:offset="0.0" />
+                <item android:color="#990E1D2D" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Rain Streaks Layer in Sky and Midground -->
+    <path
+        android:fillColor="#1A93C5FD"
+        android:pathData="M50,20 L40,110 L41.5,110 L51.5,20 Z M120,60 L110,170 L111.5,170 L121.5,60 Z M190,10 L180,130 L181.5,130 L191.5,10 Z M270,50 L260,180 L261.5,180 L271.5,50 Z M340,30 L330,150 L331.5,150 L341.5,30 Z M420,70 L410,200 L411.5,200 L421.5,70 Z M490,20 L480,140 L481.5,140 L491.5,20 Z M570,50 L560,180 L561.5,180 L571.5,50 Z M650,30 L640,160 L641.5,160 L651.5,30 Z M720,70 L710,190 L711.5,190 L721.5,70 Z M780,20 L770,140 L771.5,140 L781.5,20 Z" />
+    <path
+        android:fillColor="#1560A5FA"
+        android:pathData="M80,80 L70,220 L72,220 L82,80 Z M220,90 L210,240 L212,240 L222,90 Z M370,100 L360,250 L362,250 L372,100 Z M520,80 L510,230 L512,230 L522,80 Z M670,95 L660,245 L662,245 L672,95 Z" />
+
+    <!-- Reflective Rainwater Lake Surface -->
+    <path
+        android:pathData="M0,280h800v170h-800z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="280"
+                android:endX="400"
+                android:endY="450"
+                android:type="linear">
+                <item android:color="#FF13273D" android:offset="0.0" />
+                <item android:color="#FF0D1B2A" android:offset="0.5" />
+                <item android:color="#FF060D15" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Lake Rain Droplet Ripples -->
+    <path
+        android:fillColor="#2260A5FA"
+        android:pathData="M160,310m-30,0a30,6 0 1,0 60,0a30,6 0 1,0 -60,0 M420,335m-45,0a45,8 0 1,0 90,0a45,8 0 1,0 -90,0 M620,318m-35,0a35,7 0 1,0 70,0a35,7 0 1,0 -70,0 M280,365m-50,0a50,9 0 1,0 100,0a50,9 0 1,0 -100,0 M530,380m-55,0a55,10 0 1,0 110,0a55,10 0 1,0 -110,0" />
+
+    <!-- Foreground Misty Pines Silhouette -->
+    <path
+        android:fillColor="#FF081422"
+        android:pathData="M40,190 L65,240 L57,240 L80,290 L70,290 L95,340 L10,340 L35,290 L25,290 L48,240 L40,240 Z M120,165 L145,215 L137,215 L160,265 L150,265 L178,325 L65,325 L92,265 L82,265 L105,215 L97,215 Z M740,180 L765,230 L757,230 L780,280 L770,280 L795,335 L700,335 L725,280 L715,280 L738,230 L730,230 Z M670,160 L695,215 L687,215 L710,270 L700,270 L728,330 L620,330 L648,270 L638,270 L661,215 L653,215 Z" />
+
+    <!-- Foreground Wooden Dock / Shoreline -->
+    <path
+        android:pathData="M310,450 L490,450 L460,370 L340,370 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="400"
+                android:startY="370"
+                android:endX="400"
+                android:endY="450"
+                android:type="linear">
+                <item android:color="#FF1A2736" android:offset="0.0" />
+                <item android:color="#FF0C141C" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Dock Planks Highlights -->
+    <path
+        android:fillColor="#2693C5FD"
+        android:pathData="M342,374h116v2h-116z M337,390h126v2h-126z M330,408h140v2h-140z M322,428h156v2h-156z" />
+
+</vector>

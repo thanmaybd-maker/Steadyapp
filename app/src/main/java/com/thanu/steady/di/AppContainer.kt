@@ -17,6 +17,8 @@ class AppContainer(private val context: Context) {
     val notificationAdapter by lazy { NotificationAdapter(context) }
     val documentAdapter by lazy { com.thanu.steady.platform.DocumentAdapter(context) }
     val bootstrap by lazy { com.thanu.steady.platform.BootstrapStore(context) }
+    val platformSensors by lazy { com.thanu.steady.platform.PlatformSensors(context) }
+    val audioSoundscapeEngine by lazy { com.thanu.steady.platform.AudioSoundscapeEngine(context) }
     val clock: java.time.Clock = java.time.Clock.systemUTC()
     val recoveryRepository by lazy { com.thanu.steady.data.RecoveryRepository { database } }
     val preferencesRepository by lazy { com.thanu.steady.data.PreferencesRepository { database } }
@@ -52,7 +54,7 @@ class AppContainer(private val context: Context) {
         val factory = SupportOpenHelperFactory(passphrase)
         return Room.databaseBuilder(context, SteadyDatabase::class.java, "steady_encrypted.db")
             .openHelperFactory(factory)
-            .addMigrations(SteadyDatabase.MIGRATION_1_2, SteadyDatabase.MIGRATION_2_3, com.thanu.steady.data.EXPANDED_MIGRATION_3_4)
+            .addMigrations(SteadyDatabase.MIGRATION_1_2, SteadyDatabase.MIGRATION_2_3, com.thanu.steady.data.EXPANDED_MIGRATION_3_4, com.thanu.steady.data.PERSONALIZATION_MIGRATION_4_5)
             .build().also { openDatabase = it }
     }
 

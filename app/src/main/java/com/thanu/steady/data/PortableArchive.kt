@@ -181,7 +181,8 @@ object PortableCodec {
         a.estimates.forEach { require(it.sessionId in sessionIds && it.kilograms.isFinite() && it.kilograms in 1.0..1000.0 && it.met.isFinite() && it.met > 0)
             require(it.activeKcal.isFinite() && it.activeKcal >= 0 && it.grossKcal.isFinite() && it.grossKcal >= it.activeKcal); text(it.method,200); text(it.reference,2000) }
         a.days.forEach { day(it.day); policy(it.zone,it.boundary); text(it.nextAction,10_000); require(it.mode in setOf("NORMAL","MINIMUM","PAUSED")) }
-        a.profile?.let { p -> require(p.id == 1 && p.country in setOf("IN","OTHER") && p.palette in setOf("KINETIC","DAYBOOK") && p.theme in setOf("SYSTEM","LIGHT","DARK"))
+        a.profile?.let { p -> com.thanu.steady.domain.PersonalizationRules.validate(p.ringMetrics,p.waterQuickMl,p.waterUnit,p.reviewCards)
+            require(p.id == 1 && p.country in setOf("IN","OTHER") && p.palette in setOf("KINETIC","DAYBOOK") && p.theme in setOf("SYSTEM","LIGHT","DARK"))
             text(p.displayName,100); require(p.textScale in 1f..2f && p.alertBudget in 0..5 && p.quietStart in 0..1439 && p.quietEnd in 0..1439)
             require(p.focusTargetMinutes == null || p.focusTargetMinutes in 1..1440)
             require(p.waterTargetMl == null || p.waterTargetMl > 0); require(p.stepTarget == null || p.stepTarget > 0)

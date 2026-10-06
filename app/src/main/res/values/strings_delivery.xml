@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="third_party_notices">Third-party licences and notices</string>
+    <string name="licences_description">Steady includes AndroidX and Compose (Google), Kotlin, coroutines, serialization and annotations (JetBrains), Guava ListenableFuture (The Guava Authors), SQLCipher (Zetetic) and OpenSSL (The OpenSSL Project Authors). Their notices and the resolved dependency inventory are available offline below. App artwork is original vector artwork; no external fonts, audio or exercise assets are included.</string>
+    <string name="runtime_dependencies">Resolved runtime dependency inventory</string>
+    <string name="apache_licence">Apache License 2.0</string>
+    <string name="sqlcipher_android_notice">SQLCipher Android notice</string>
+    <string name="sqlcipher_core_notice">SQLCipher Community notice</string>
+    <string name="openssl_notice">OpenSSL notice</string>
+    <string name="notice_load_failed">The bundled notice could not be opened. Return to the list and retry.</string>
+    <string name="add_menu">Add</string>
+    <string name="summary_preferences">Edit summaries, water shortcuts and Review</string>
+    <string name="first_summary">First summary</string>
+    <string name="second_summary">Second summary</string>
+    <string name="third_summary">Third summary</string>
+    <string name="summary_distinct_notice">Choose three different summaries. Unavailable observations stay unavailable; optional targets are not required.</string>
+    <string name="water_quick_quantities">Quick water quantities in millilitres</string>
+    <string name="water_quantities_example">For example: 100,250,500. Choose up to five distinct quantities from 1 to 2000 ml. Larger entries remain available through the editable log.</string>
+    <string name="millilitres_unit">Millilitres</string>
+    <string name="fluid_ounces_unit">US fluid ounces (with millilitres)</string>
+    <string name="visible_review_cards">Visible Review summaries</string>
+    <string name="water_fluid_ounces">Recorded water: %1$.1f US fl oz (%2$d ml)</string>
+    <string name="quick_water">Log %1$s</string>
+    <string name="undo_water_log">Undo last quick water entry</string>
+    <string name="workout_actual_minutes">Actual workout: %1$.1f minutes</string>
+    <string name="metric_goal_value">%1$.1f / %2$.1f in this summary’s unit</string>
+    <string name="no_optional_target">No optional target set</string>
+    <string name="follow_device_zone">Use the device time zone for new records</string>
+    <string name="timeline_graph_description">Time chart of scheduled tasks and recorded active segments. Every entry is described in the list below. Overlapping entries use separate lanes.</string>
+    <string name="timeline_graph_legend">Scheduled tasks and recorded active segments. A dot represents a scheduled time without a planned duration.</string>
+    <string name="timeline_axis_zone">Logical-day time axis in %1$s; the right edge is the next day boundary.</string>
+    <string name="timeline_linear_alternative">Time chart as a list</string>
+    <string name="timeline_record_row">%1$s · %2$s–%3$s · %4$s</string>
+    <string name="recorded_segment">Recorded active time</string>
+    <string name="planned_segment">Planned time</string>
+    <string name="timeline_overlap">%1$d entries overlap here; the chart stacks them separately.</string>
+    <string name="open_focus">Open Focus</string>
+    <string name="read_timer_time">Read current timer time</string>
+    <string name="read_remaining_time">Remaining time: %1$d seconds.</string>
+    <string name="read_elapsed_time">Elapsed active time: %1$d seconds.</string>
+</resources>

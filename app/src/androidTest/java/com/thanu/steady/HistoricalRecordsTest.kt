@@ -27,7 +27,7 @@ class HistoricalRecordsTest {
         name="history-synthetic-${id()}.db"
         database=Room.databaseBuilder(context,SteadyDatabase::class.java,name)
             .openHelperFactory(SupportOpenHelperFactory(ByteArray(32).also(java.security.SecureRandom()::nextBytes)))
-            .addMigrations(SteadyDatabase.MIGRATION_1_2,SteadyDatabase.MIGRATION_2_3,EXPANDED_MIGRATION_3_4).build()
+            .addMigrations(SteadyDatabase.MIGRATION_1_2,SteadyDatabase.MIGRATION_2_3,EXPANDED_MIGRATION_3_4,PERSONALIZATION_MIGRATION_4_5).build()
     }
     @After fun cleanup() { database.close(); context.deleteDatabase(name) }
     @Test fun changingCurrentZoneKeepsOriginalLogicalDayAndCorrectionsRetainReflection()=runBlocking {

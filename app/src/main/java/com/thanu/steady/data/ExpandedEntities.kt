@@ -1,6 +1,7 @@
 package com.thanu.steady.data
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
@@ -132,4 +133,8 @@ data class ExpandedProfile(@PrimaryKey val id: Int = 1, val displayName: String 
     val dashboard: String = "NEXT,RINGS,ROUTINES,TIMELINE,HABITS,CAPTURE,FOOD", val wideCards: String = "NEXT",
     val focusTargetMinutes: Int? = null, val waterTargetMl: Int? = null, val stepTarget: Long? = null,
     val weightKg: Double? = null, val quietStart: Int = 1320, val quietEnd: Int = 420,
-    val alertBudget: Int = 5, val dateStyle: String = "LOCAL", val zoneMode: String = "FIXED")
+    val alertBudget: Int = 5, val dateStyle: String = "LOCAL", val zoneMode: String = "FIXED",
+    @ColumnInfo(defaultValue = "'STEPS,FOCUS,HABITS'") val ringMetrics: String = "STEPS,FOCUS,HABITS",
+    @ColumnInfo(defaultValue = "'100,250,500'") val waterQuickMl: String = "100,250,500",
+    @ColumnInfo(defaultValue = "'ML'") val waterUnit: String = "ML",
+    @ColumnInfo(defaultValue = "'FOCUS,HABITS,WORKOUTS,WATER,SLEEP'") val reviewCards: String = "FOCUS,HABITS,WORKOUTS,WATER,SLEEP")

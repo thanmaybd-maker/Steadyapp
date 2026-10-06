@@ -13,3 +13,11 @@ Build Steady for one user. Keep v0.1 to Today, Break, Safety, Review, Settings. 
 Run the applicable Gradle commands listed on the preceding page. Do not report an unavailable command as passed. Use deterministic unit checks for rules and instrumented/device checks for storage/platform behaviour. A milestone is done when its criterion passes, previous relevant checks remain green, and docs/evidence/mNN.md records commit, commands, results, screenshots/test settings, limits and next action.
 
 Before a substantial change, preserve a working checkpoint. Use synthetic data. No automatic posting, purchases, contact actions, publishing, or additional scope. If a dependency spike blocks progress, stop that feature and report evidence; do not remove privacy/accessibility requirements to force a pass.
+
+### Current owner instructions (7 October 2026)
+- Continue the existing checkpoint. Implement the four `docs/steady-og-*` documents, reconciling their plans against actual source and verification evidence.
+- Keep Kinetic and Daybook themes and customization. Adapt OG's richer cards, graphs, water and habit animations and interactions into those themes. Use theme-aware text colors; do not carry over fixed black/blue text or remove existing records/accessibility.
+- Make the smallest coherent change. After each change batch, show its diff. Run applicable checks before reporting success and include their actual output.
+- Never describe a task or feature as done merely because a file exists or compiles. Completion requires the implemented behavior and its applicable passing checks; record remaining gaps honestly.
+- If an API is unknown, say so and consult Context7 when available. If it is unavailable, disclose that limitation and verify against primary documentation or installed source instead of guessing.
+- These rules are repository-scoped working memory. The owner has also selected optional Gemini with their own API key; keep the offline core private and isolate any explicitly previewed, opt-in connected requests.
