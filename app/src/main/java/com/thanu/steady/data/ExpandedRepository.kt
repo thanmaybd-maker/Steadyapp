@@ -183,6 +183,7 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
             db.expandedDao().save(note.copy(savedAt = clock.millis())) }
     }
     suspend fun note(id: String) = provider().expandedDao().note(id)
+    suspend fun deleteNote(id: String) = provider().expandedDao().deleteNote(id)
     suspend fun saveWater(log: WaterLog) { require(log.millilitres > 0); LocalDate.parse(log.day); provider().expandedDao().save(log) }
     suspend fun deleteWater(id: String) = provider().expandedDao().deleteWater(id)
     suspend fun saveSleep(log: SleepLog) {

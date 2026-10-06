@@ -54,6 +54,7 @@ interface ExpandedDao {
     @Query("SELECT * FROM session_note WHERE id = :id") suspend fun note(id: String): SessionNote?
     @Query("SELECT * FROM session_note WHERE sessionId = :id ORDER BY savedAt") suspend fun notes(id: String): List<SessionNote>
     @Upsert suspend fun save(value: SessionNote)
+    @Query("DELETE FROM session_note WHERE id = :id") suspend fun deleteNote(id: String)
     @Query("SELECT * FROM exercise_set WHERE sessionId = :id ORDER BY position,doneAt") suspend fun sets(id: String): List<ExerciseSet>
     @Upsert suspend fun save(value: ExerciseSet)
     @Query("DELETE FROM exercise_set WHERE id = :id") suspend fun deleteSet(id: String)

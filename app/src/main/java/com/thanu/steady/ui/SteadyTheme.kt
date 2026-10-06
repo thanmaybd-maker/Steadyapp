@@ -30,7 +30,7 @@ fun SteadyTheme(profile: ExpandedProfile = ExpandedProfile(), content: @Composab
         primaryContainer = Color(0xFF173C2B), onPrimaryContainer = Color(0xFFF2F5F3),
         error = Color(0xFFFFB4AB), errorContainer = Color(0xFF381614), onErrorContainer = Color.White
     ) else lightColorScheme(
-        primary = if (daybook) Color(0xFF25483D) else Color(0xFF006C49), onPrimary = Color.White,
+        primary = if (daybook) Color(0xFF25483D) else Color(0xFF00583B), onPrimary = Color.White,
         background = if (daybook) Color(0xFFF4F0E6) else Color(0xFFFAF8FF),
         surface = if (daybook) Color(0xFFFFFCF6) else Color.White,
         onBackground = if (daybook) Color(0xFF233A33) else Color(0xFF131B2E),
@@ -39,9 +39,13 @@ fun SteadyTheme(profile: ExpandedProfile = ExpandedProfile(), content: @Composab
         outline = Color(0xFF586A61), primaryContainer = Color(0xFFDDEFE4), onPrimaryContainer = Color(0xFF163627),
         error = Color(0xFF9B1C1C), errorContainer = Color(0xFFFFE6E1), onErrorContainer = Color(0xFF651010)
     )
+    val accessibleColours = if (profile.highContrast && !dark) colours.copy(
+        background = Color.White, surface = Color.White, onBackground = Color.Black,
+        onSurface = Color.Black, onSurfaceVariant = Color.Black, outline = Color.Black,
+        primary = Color(0xFF003C28), onPrimary = Color.White) else colours
     CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * profile.textScale)) {
     MaterialTheme(
-        colorScheme = colours,
+        colorScheme = accessibleColours,
         shapes = Shapes(medium = RoundedCornerShape(20.dp), large = RoundedCornerShape(24.dp)),
         typography = Typography(
             bodyLarge = TextStyle(fontSize = 18.sp, lineHeight = 28.sp),

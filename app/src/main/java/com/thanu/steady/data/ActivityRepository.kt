@@ -135,6 +135,21 @@ class ActivityRepository(private val provider: () -> SteadyDatabase, val time: (
         db.withTransaction { require(db.expandedDao().session(value.sessionId)?.type == "WORKOUT"); db.expandedDao().save(value) }
     }
     suspend fun sets(id: String) = provider().expandedDao().sets(id)
+    suspend fun manualWorkout(kind: String, title: String, actualMinutes: Double, notes: String) {
+        require(kind in setOf("WALK", "RUN", "CYCLE", "STRENGTH", "INTERVALS", "MOBILITY", "CUSTOM"))
+        require(actualMinutes.isFinite() && actualMinutes > 0 && actualMinutes <= 1440)
+        require(title.isNotBlank() && title.length <= 500 && notes.length <= 100_000)
+        val now = time(); val p = preferences.get(); val actual = (actualMinutes * 60_000).toLong()
+        val id = UUID.randomUUID().toString()
+        val db = provider()
+        db.withTransaction {
+            db.expandedDao().save(ActivitySession(id, "WORKOUT", kind, title, state = "STOPPED",
+                activeMillis = actual, started = now.wall - actual, ended = now.wall, notes = notes,
+                zone = p.zoneId, boundary = p.boundaryMinutes, source = "USER_ENTERED", updated = now.wall))
+            db.expandedDao().save(ActivitySegment(UUID.randomUUID().toString(), id, now.wall - actual,
+                now.wall, 0, actual, actual, p.zoneId, p.boundaryMinutes))
+        }
+    }
     suspend fun deleteSet(id: String) = provider().expandedDao().deleteSet(id)
     suspend fun saveTemplate(value: WorkoutTemplate) {
         require(value.title.isNotBlank() && value.rounds in 1..100 && value.workSeconds in 1..86_400 && value.restSeconds in 0..86_400)

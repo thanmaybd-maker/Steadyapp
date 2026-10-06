@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
@@ -64,9 +65,11 @@ import com.thanu.steady.R
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Canvas(Modifier.size(56.dp)) {
                 val stroke = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
-                drawArc(track, 0f, 360f, false, size = Size(size.width, size.height), style = stroke)
+                val inset = stroke.width / 2
+                val arcSize = Size(size.width - stroke.width, size.height - stroke.width)
+                drawArc(track, 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
                 if (value != null && target != null && target > 0) drawArc(primary, -90f,
-                    ((value / target).coerceIn(0.0, 1.0) * 360).toFloat(), false, size = Size(size.width, size.height), style = stroke)
+                    ((value / target).coerceIn(0.0, 1.0) * 360).toFloat(), false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
             }
             Column(Modifier.weight(1f)) { Text(stringResource(title), style = MaterialTheme.typography.titleMedium); Text(summary) }
         }
