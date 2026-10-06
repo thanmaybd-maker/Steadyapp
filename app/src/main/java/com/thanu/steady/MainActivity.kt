@@ -91,7 +91,12 @@ class MainActivity : ComponentActivity() {
     }
     override fun onStart() { super.onStart(); if (::appContainer.isInitialized) appContainer.isForeground = true }
     override fun onStop() {
-        if (::appContainer.isInitialized) appContainer.isForeground = false
+        if (::appContainer.isInitialized) {
+            appContainer.isForeground = false
+            appContainer.audioSoundscapeEngine.release()
+            appContainer.platformSensors.stopStepTracking()
+            appContainer.platformSensors.stopGpsTracking()
+        }
         if (::accessModel.isInitialized) accessModel.relock()
         super.onStop()
     }

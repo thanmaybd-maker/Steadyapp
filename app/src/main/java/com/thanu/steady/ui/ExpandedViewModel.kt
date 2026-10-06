@@ -37,6 +37,31 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     val drafts = _drafts.asStateFlow()
     private val draftJobs = mutableMapOf<String, Job>()
     private val draftVersions = mutableMapOf<String, Int>()
+    private val _ambient = MutableStateFlow(AmbientPreferences())
+    val ambient = _ambient.asStateFlow()
+    private val _ambientSaved = MutableStateFlow(true)
+    val ambientSaved = _ambientSaved.asStateFlow()
+    private var ambientVersion = 0
+    private var ambientSave: Job? = null
+    private var ambientLoad: Job? = null
+    fun ambient(transform: (AmbientPreferences) -> AmbientPreferences) {
+        val next = transform(_ambient.value).also { it.validate() }
+        val version = ++ambientVersion
+        _ambient.value = next
+        audioSoundscapeEngine.playSoundscape(next.sound)
+        audioSoundscapeEngine.setVolume(next.volume)
+        audioSoundscapeEngine.setModulation(next.modulation)
+        _ambientSaved.value = false
+        ambientSave?.cancel()
+        ambientSave = viewModelScope.launch {
+            delay(400)
+            try {
+                withContext(Dispatchers.IO) { repository.saveNote(SessionNote("ambient:preferences", null, Json.encodeToString(next), repository.clock.millis())) }
+                if (version == ambientVersion) _ambientSaved.value = true
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { _state.update { it.copy(error = R.string.audio_settings_save_failed) } }
+        }
+    }
     fun openDraft(key: String, initial: Map<String, String>) {
         if (_drafts.value.containsKey(key)) return
         _drafts.update { it + (key to initial) }
@@ -74,7 +99,27 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
             catch (_: Exception) { _state.update { it.copy(error = R.string.draft_save_failed) } }
         }
     }
+    private fun loadAmbient() {
+        ambientLoad?.cancel()
+        val version = ambientVersion
+        ambientLoad = viewModelScope.launch {
+            try {
+                val stored = withContext(Dispatchers.IO) { repository.note("ambient:preferences") }
+                if (ambientVersion == version) {
+                    val settings = stored?.let { Json.decodeFromString<AmbientPreferences>(it.text).also { value -> value.validate() } }
+                        ?: AmbientPreferences()
+                    _ambient.value = settings
+                    audioSoundscapeEngine.playSoundscape(settings.sound)
+                    audioSoundscapeEngine.setVolume(settings.volume)
+                    audioSoundscapeEngine.setModulation(settings.modulation)
+                    _ambientSaved.value = true
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { _state.update { it.copy(error = R.string.audio_settings_load_failed) } }
+        }
+    }
     init {
+        loadAmbient()
         reload()
         viewModelScope.launch {
             while (true) {
@@ -247,8 +292,16 @@ class ExpandedViewModel(val repository: ExpandedRepository, private val activity
     fun deleteHistory(id: String) = action({ activity.deleteHistory(id) })
     fun afterRecovery() {
         noteSave?.cancel(); draftJobs.values.forEach { it.cancel() }; draftJobs.clear()
+        ambientVersion++; ambientSave?.cancel(); audioSoundscapeEngine.stop()
+        loadAmbient()
         _drafts.value = emptyMap(); noteLoaded = false; noteSession = null
         _state.update { it.copy(scratchpad = "",noteStatus = R.string.saved) }
         reload()
+    }
+    override fun onCleared() {
+        audioSoundscapeEngine.release()
+        platformSensors.stopStepTracking()
+        platformSensors.stopGpsTracking()
+        super.onCleared()
     }
 }

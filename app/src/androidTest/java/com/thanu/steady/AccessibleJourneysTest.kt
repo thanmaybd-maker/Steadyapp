@@ -3,6 +3,7 @@ package com.thanu.steady
 import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import com.thanu.steady.data.*
@@ -11,6 +12,9 @@ import com.thanu.steady.platform.*
 import com.thanu.steady.ui.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import org.junit.*
 import org.junit.Assert.*
@@ -126,6 +130,59 @@ class AccessibleJourneysTest {
     }
     @Test fun kineticWaterShortcutAndUndoChangeStoredServings() = waterJourney("KINETIC", "LIGHT", 1f)
     @Test fun daybookDarkDoubleTextKeepsWaterAndUndoReachable() = waterJourney("DAYBOOK", "DARK", 2f)
+
+    @Test fun audioControlsPortalAndRecoveredPreferencesUseEncryptedRecords() {
+        compose.setContent {
+            val state by model.state.collectAsState()
+            state.period?.let { SteadyTheme(ExpandedProfile(palette = "DAYBOOK", theme = "DARK", textScale = 2f, reducedMotion = true)) {
+                ExpandedPage { AmbientSoundscape(model, state, {}) }
+            } }
+        }
+        compose.waitUntil(10000) { model.state.value.period != null }
+        val tone = compose.activity.getString(R.string.available_choice, label(R.string.sound_tone))
+        compose.onNodeWithText(tone).performScrollTo().performClick()
+        compose.onAllNodesWithContentDescription(label(R.string.audio_modulation_label)).onLast()
+            .performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(40f) }
+        compose.onNodeWithContentDescription(label(R.string.audio_volume_label))
+            .performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(0.35f) }
+        button(R.string.audio_portal).performScrollTo().performClick()
+        button(R.string.safety_action).performScrollTo().assertIsDisplayed()
+        val rain = compose.activity.getString(R.string.available_choice, label(R.string.audio_scene_rain))
+        compose.onNodeWithText(rain).performScrollTo().performClick()
+        button(R.string.close_action).performScrollTo().performClick()
+        compose.waitUntil(10000) { model.ambientSaved.value && model.ambient.value.scene == "RAIN" }
+        runBlocking(Dispatchers.IO) {
+            val saved = Json.decodeFromString<AmbientPreferences>(repository.note("ambient:preferences")!!.text)
+            assertEquals("ALPHA_BINAURAL", saved.sound); assertEquals(40.0, saved.modulation, 0.01)
+            assertEquals(0.35f, saved.volume, 0.01f); assertEquals("RAIN", saved.scene)
+            repository.saveNote(SessionNote("ambient:preferences", null, Json.encodeToString(
+                AmbientPreferences(sound = "CAMPFIRE", volume = 0.1f, scene = "FOREST")), clock.millis()))
+        }
+        compose.runOnIdle { model.afterRecovery() }
+        compose.waitUntil(10000) { model.ambient.value.sound == "CAMPFIRE" }
+        assertFalse(model.audioSoundscapeEngine.isPlaying.value)
+    }
+
+    @Test fun voluntaryReturnNeedsNoTimerAndSavesReasonAndRealCounter() {
+        var closed by mutableStateOf(false)
+        compose.setContent {
+            val state by model.state.collectAsState()
+            SteadyTheme(ExpandedProfile(textScale = 2f, reducedMotion = true)) {
+                if (state.period != null && !closed) VoluntaryPause(model, state, {}, { closed = true })
+            }
+        }
+        compose.waitUntil(10000) { model.state.value.period != null }
+        field(R.string.pause_reason).performScrollTo().performTextInput("Synthetic intention")
+        button(R.string.pause_return).performScrollTo().assertIsDisplayed().performClick()
+        compose.waitUntil(10000) { closed && !model.state.value.busy }
+        runBlocking(Dispatchers.IO) {
+            assertEquals(1, repository.interruptionCount(LocalDate.parse("2026-01-05")))
+            assertEquals("Synthetic intention", repository.snapshot(LocalDate.parse("2026-01-05"),
+                LocalDate.parse("2026-01-05")).captures.single().text)
+            val event = db.expandedDao().interruptions(clock.millis(), clock.millis()).single()
+            assertEquals("RETURNED", event.outcome); assertEquals(0, event.pauseSeconds)
+        }
+    }
 
     private fun waterJourney(palette: String, theme: String, textScale: Float) {
         runBlocking(Dispatchers.IO) { repository.saveProfile(ExpandedProfile(onboarded = true,

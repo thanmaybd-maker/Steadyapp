@@ -88,12 +88,9 @@ import java.util.Locale
             } else {
                 KineticFocusTimer(current, state, model, dim, { dim = !dim }, { stopOptions = true }, onSafety)
             }
-            SectionCard(R.string.scratchpad_title) {
-                TextInput(state.scratchpad, R.string.note_text, model::scratchpad, 5)
-                Text(stringResource(state.noteStatus))
-                if (state.noteStatus == R.string.note_retry) SecondaryAction(R.string.retry, onClick = model::retryNote)
-                Text(stringResource(R.string.scratchpad_privacy))
-            }
+            LiveScratchpadCard(state, model, onSafety)
+            StudySetsAndReps(model, state)
+            AmbientSoundscape(model, state, onSafety)
             SectionCard(R.string.task_queue) {
                 val queue = period.tasks.filter { it.state == "PENDING" && it.category in setOf("STUDY", "BUILD") }
                 if (queue.isEmpty()) Text(stringResource(R.string.empty_tasks))
@@ -104,6 +101,12 @@ import java.util.Locale
             }
             SubjectTopics(model,state,onSafety)
             SectionCard(R.string.break_tools) {
+                val pauses by produceState<Int?>(null, period.end, state.busy) {
+                    try { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { model.repository.interruptionCount(period.end) } }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { value = null }
+                }
+                pauses?.let { Text(stringResource(R.string.pause_decisions_count, it)) }
                 if (current == null) period.sessions.firstOrNull { it.type == "FOCUS" && it.state == "COMPLETED" && it.breakSeconds > 0 }?.let { previous ->
                     PrimaryAction(R.string.start_break, !state.busy) { model.start("BREAK", "REST", "", previous.breakSeconds, 0) }
                 }
@@ -140,87 +143,6 @@ import java.util.Locale
     }
 }
 
-@Composable fun VoluntaryPause(model: ExpandedViewModel, state: ExpandedUiState, onSafety: () -> Unit, onClose: () -> Unit) {
-    var seconds by remember { mutableStateOf(10) }
-    var started by remember { mutableStateOf<Long?>(null) }
-    var elapsed by remember { mutableStateOf(0) }
-    var reason by remember { mutableStateOf("") }
-
-    LaunchedEffect(started) {
-        val beginning = started ?: return@LaunchedEffect
-        while (true) {
-            elapsed = ((android.os.SystemClock.elapsedRealtime() - beginning) / 1000).toInt().coerceAtLeast(0)
-            if (elapsed >= seconds) break
-            kotlinx.coroutines.delay(200)
-        }
-    }
-
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        DialogSurface { ExpandedPage {
-            SecondaryAction(R.string.safety_action, onClick = onSafety)
-            Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Column {
-                        Text("Voluntary Pause", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Take a moment to reflect before proceeding", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Box(modifier = Modifier.size(160.dp).background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(100)), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            if (started == null) {
-                                Text("Inhale 1s", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            } else {
-                                val remaining = (seconds - elapsed).coerceAtLeast(0)
-                                Text(String.format(java.util.Locale.ROOT, "00:%02d", remaining), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
-                                Text("${seconds}s Breath Hold to Unlock", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    listOf(5, 10, 15).forEach { value ->
-                        OutlinedButton(onClick = { seconds = value }, enabled = started == null, modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
-                            Text(if (value == 5) "5s Quick" else if (value == 10) "10s Calm" else "15s Fort")
-                        }
-                    }
-                }
-
-                androidx.compose.material3.OutlinedTextField(value = reason, onValueChange = { reason = it }, label = { Text("Conscious Reason [Required]") }, modifier = Modifier.fillMaxWidth())
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())) {
-                    listOf("Check quick syllabus", "Urgent message", "Audio control", "Impulse check").forEach { chip ->
-                        androidx.compose.material3.FilterChip(selected = reason == chip, onClick = { reason = chip }, label = { Text(chip) })
-                    }
-                }
-
-                // Removed mock telemetry about impulses
-
-                fun outcome(value: String) { model.action({ model.repository.interruption(InterruptionEvent(model.repository.newId(), outcome = value, at = model.repository.clock.millis(), pauseSeconds = started?.let { ((android.os.SystemClock.elapsedRealtime() - it)/1000).toInt().coerceIn(0,60) } ?: 0)) }, after = onClose) }
-
-                if (started == null) {
-                    Button(onClick = { started = android.os.SystemClock.elapsedRealtime() }, modifier = Modifier.fillMaxWidth().height(56.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
-                        Text("Initiate Breath Hold to Proceed")
-                    }
-                } else if (elapsed >= seconds) {
-                    Button(onClick = { outcome("CONTINUED") }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = reason.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
-                        Text("Emergency 1-Minute Micro-Check (60s auto-exit)")
-                    }
-                }
-
-                Button(onClick = { outcome("RETURNED") }, modifier = Modifier.fillMaxWidth().height(56.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Return to Deep Study")
-                        Text("Target: 45 min focus block remaining", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-            }
-        } }
-    }
-}
-
 @Composable
 fun KineticFocusTimer(current: com.thanu.steady.data.ActivitySession, state: ExpandedUiState, model: ExpandedViewModel, dim: Boolean, onDimToggle: () -> Unit, onStop: () -> Unit, onSafety: () -> Unit) {
     val elapsed = state.activeMillis
@@ -234,65 +156,27 @@ fun KineticFocusTimer(current: com.thanu.steady.data.ActivitySession, state: Exp
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp)).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(modifier = Modifier.size(240.dp), contentAlignment = Alignment.Center) {
-                FocusRings(modifier = Modifier.fillMaxSize(), outerProgress = outerProgress, innerProgress = 0.75f)
+                FocusRings(modifier = Modifier.fillMaxSize(), outerProgress = outerProgress, innerProgress = com.thanu.steady.domain.ChartRules.progress((focusMillis(state.period!!) + if (current.type == "FOCUS") (state.activeMillis - current.activeMillis).coerceAtLeast(0) else 0) / 60_000.0, state.period.profile.focusTargetMinutes?.toDouble()) ?: 0f)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (remaining == null) "ELAPSED" else "REMAINING", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(if (remaining == null) R.string.timer_elapsed_label else R.string.timer_remaining_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(timerText, style = MaterialTheme.typography.displayLarge.copy(fontSize = 36.sp, fontWeight = FontWeight.ExtraBold))
                     // Removed mocked telemetry
                 }
             }
             Spacer(Modifier.height(16.dp))
-            val engine = model.audioSoundscapeEngine
-            val isPlaying by engine.isPlaying.collectAsState()
-            val currentType by engine.currentSoundscape.collectAsState()
-            val volume by engine.volume.collectAsState()
-            val scope = rememberCoroutineScope()
-
-            Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp)).padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("Ambient Audio", style = MaterialTheme.typography.titleMedium)
-                    IconButton(onClick = {
-                        if (isPlaying) engine.stop()
-                        else {
-                            engine.start(scope)
-                            if (currentType == null) engine.playSoundscape(com.thanu.steady.platform.AmbientSoundType.FOREST.name)
-                        }
-                    }) {
-                        Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = null)
-                    }
-                }
-                if (isPlaying) {
-                    var expandedSound by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(onClick = { expandedSound = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text(currentType?.let { com.thanu.steady.platform.AmbientSoundType.valueOf(it).title } ?: "Select Sound")
-                        }
-                        DropdownMenu(expanded = expandedSound, onDismissRequest = { expandedSound = false }) {
-                            com.thanu.steady.platform.AmbientSoundType.entries.forEach { type ->
-                                DropdownMenuItem(text = { Text("${type.iconEmoji} ${type.title}") }, onClick = {
-                                    engine.playSoundscape(type.name)
-                                    expandedSound = false
-                                })
-                            }
-                        }
-                    }
-                    Slider(value = volume, onValueChange = engine::setVolume, modifier = Modifier.fillMaxWidth())
-                }
-            }
-            Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { model.transition(if (current.state == "RUNNING") ActivityState.PAUSED else ActivityState.RUNNING) }, modifier = Modifier.weight(1f).height(48.dp), enabled = !state.busy) {
+                Button(onClick = { model.transition(if (current.state == "RUNNING") ActivityState.PAUSED else ActivityState.RUNNING) }, modifier = Modifier.weight(1f).heightIn(min = 56.dp), enabled = !state.busy) {
                     Icon(if (current.state == "RUNNING") Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (current.state == "RUNNING") "Pause Set" else "Resume Set")
+                    Text(stringResource(if (current.state == "RUNNING") R.string.timer_pause else R.string.timer_resume))
                 }
                 Button(onClick = {
                     if (current.state == "RUNNING") model.transition(ActivityState.PAUSED)
                     onStop()
-                }, modifier = Modifier.height(48.dp), enabled = !state.busy, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)) {
+                }, modifier = Modifier.heightIn(min = 56.dp), enabled = !state.busy, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)) {
                     Icon(Icons.Filled.SelfImprovement, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Stop Session")
+                    Text(stringResource(R.string.stop_session))
                 }
             }
         }
@@ -325,130 +209,5 @@ fun FocusRings(modifier: Modifier = Modifier, outerProgress: Float, innerProgres
         drawArc(color = secondaryColor, startAngle = -90f, sweepAngle = 360f * innerProgress, useCenter = false,
             topLeft = Offset(center.x - innerRadius, center.y - innerRadius), size = Size(innerRadius * 2, innerRadius * 2),
             style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round))
-    }
-}
-
-@Composable
-fun StudySetsAndReps() {
-    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(modifier = Modifier.size(32.dp).background(MaterialTheme.colorScheme.secondary.copy(alpha=0.1f), shape = RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.FitnessCenter, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
-                }
-                Text("Study Sets & Reps", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-            Text("Block 2 of 4 Today", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp))
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Set 1
-            Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp)).padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(28.dp).background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
-                    }
-                    Column {
-                        Text("Carbonyl Condensations", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Set 1 • 45m Focused Rep", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                Text("RPE 6", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha=0.1f), shape = RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp))
-            }
-
-            // Set 3 ACTIVE
-            Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp)).padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(28.dp).background(MaterialTheme.colorScheme.secondary, shape = RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
-                        Text("3", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondary, fontWeight = FontWeight.Bold)
-                    }
-                    Column {
-                        Text("Stereochemistry Problems", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                        Text("Active Current Rep • 28m Left", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-                Text("NOW", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.background(MaterialTheme.colorScheme.secondary, shape = RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp))
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("SET 3 SUBJECTIVE LOAD (RPE 1-10)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                Text("RPE 7 • Hard Steady", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            }
-            androidx.compose.material3.Slider(value = 7f, onValueChange = {}, valueRange = 1f..10f, modifier = Modifier.fillMaxWidth())
-        }
-    }
-}
-
-@Composable
-fun AmbientSoundscape() {
-    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(modifier = Modifier.size(32.dp).background(MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.size(18.dp))
-                }
-                Column {
-                    Text("Neural Synthesizer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Isochronic & Binaural Layering", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Box(modifier = Modifier.size(176.dp).background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(50)).padding(12.dp), contentAlignment = Alignment.Center) {
-                Box(modifier = Modifier.size(128.dp).background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.Waves, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-                        Text("40 Hz", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
-                        Text("GAMMA FOCUS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun LiveScratchpadCard(state: ExpandedUiState, model: ExpandedViewModel) {
-    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(modifier = Modifier.size(32.dp).background(MaterialTheme.colorScheme.primary.copy(alpha=0.1f), shape = RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                }
-                Text("Live Scratchpad", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("# Active Proof Scratchpad", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("[✓]", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Text("Nucleophilic attack at C2 carbonyl", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("[ ]", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
-                Text("Verify stereochemical inversion (R -> S)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-            }
-        }
-
-        androidx.compose.material3.OutlinedTextField(value = state.scratchpad, onValueChange = model::scratchpad, placeholder = { Text("Park intrusive thought or doubt...") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(50))
-    }
-}
-
-@Composable
-fun BioBreakPrompt() {
-    Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Box(modifier = Modifier.size(64.dp).background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.LocalCafe, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-        }
-        Column {
-            Text("Upcoming Bio-Reset", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold)
-            Text("20-20-20 Optical Rest & Electrolytes", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text("In 16 mins: Gaze 20ft away for 20 seconds, hydrate.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
 }

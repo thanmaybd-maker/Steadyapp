@@ -268,8 +268,18 @@ class ExpandedRepository(private val provider: () -> SteadyDatabase, val clock: 
             db.expandedDao().save(value.copy(id = old?.id ?: value.id, updated = clock.millis())) }
     }
     suspend fun saveCapture(value: Capture) { require(value.text.isNotBlank() && value.text.length <= 100_000); provider().expandedDao().save(value) }
-    suspend fun interruption(value: InterruptionEvent) {
+    suspend fun interruption(value: InterruptionEvent, reason: String = "") {
         require(value.mode == "VOLUNTARY" && value.pauseSeconds in 0..60 && value.appPackage == null && value.outcome in setOf("RETURNED", "CONTINUED", "DISABLED"))
-        provider().expandedDao().save(value)
+        require(reason.length <= 100_000)
+        val db = provider()
+        db.withTransaction {
+            db.expandedDao().save(value)
+            if (reason.isNotBlank()) db.expandedDao().save(Capture(value.id, reason, value.at))
+        }
+    }
+    suspend fun interruptionCount(day: LocalDate): Int {
+        val p = preferences.get()
+        val bounds = ActivityTotals.dayBounds(day, ZoneId.of(p.zoneId), p.boundaryMinutes)
+        return provider().expandedDao().interruptions(bounds.start, bounds.end - 1).size
     }
 }
