@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
@@ -114,6 +115,14 @@ val LocalRoomyCard = staticCompositionLocalOf { true }
                 if(target != null && value != null) Text(stringResource(R.string.metric_goal_value,value,target))
                 else if(value != null) Text(stringResource(R.string.no_optional_target))
             }
+        }
+    }
+}
+@Composable fun EmptyStateCard(@StringRes message: Int, @StringRes actionLabel: Int? = null, onAction: (() -> Unit)? = null) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(stringResource(message), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+        if (actionLabel != null && onAction != null) {
+            OutlinedButton(onClick = onAction) { Text(stringResource(actionLabel)) }
         }
     }
 }

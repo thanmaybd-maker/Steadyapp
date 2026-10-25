@@ -1,0 +1,3 @@
+## 2026-10-06 - Empty State UX
+**Learning:** In Jetpack Compose codebases structured like Steady, where state drives the UI, it is crucial to understand the state handling of components when introducing interactive elements (like a call-to-action button in an EmptyStateCard). Adding a button that dispatches a state change (e.g., `editor = "task"`) must perfectly match the existing condition blocks (e.g., `when { editor == "task" -> TaskEditor(...) }`).
+**Action:** When adding call-to-actions to empty states, verify the exact state mutations expected by the parent composable or `when` blocks to ensure the action is correctly handled.
