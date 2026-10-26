@@ -80,7 +80,7 @@ fun activityMillis(period: PeriodSnapshot,type: String,subject: String? = null):
                 PrimaryAction(R.string.add_task) { editedTask = null; editor = "task" }
                 StudyBlockPlanner(model, state, onSafety)
                 TaskTimeline(period.copy(tasks = visibleTasks),onFocus,onHealth,model.repository.clock)
-                if (visibleTasks.isEmpty()) Text(stringResource(R.string.empty_tasks))
+                if (visibleTasks.isEmpty()) EmptyStateCard(R.string.empty_tasks, R.string.add_task) { editedTask = null; editor = "task" }
                 visibleTasks.sortedWith(compareBy<PlanItem> { item -> item.timeMinutes?.let { time -> Math.floorMod(time-item.boundary,1440) } ?: 1440 }.thenBy { it.position }).forEach { task ->
                     androidx.compose.animation.AnimatedVisibility(
                         visible = true,

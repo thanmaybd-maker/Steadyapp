@@ -93,7 +93,7 @@ import java.util.Locale
             AmbientSoundscape(model, state, onSafety)
             SectionCard(R.string.task_queue) {
                 val queue = period.tasks.filter { it.state == "PENDING" && it.category in setOf("STUDY", "BUILD") }
-                if (queue.isEmpty()) Text(stringResource(R.string.empty_tasks))
+                if (queue.isEmpty()) EmptyStateCard(R.string.empty_tasks)
                 queue.forEach { task ->
                     Text(task.title)
                     SecondaryAction(R.string.choose_task) { model.field(key, "task", task.id); model.field(key, "title", task.title); task.subjectId?.let { model.field(key, "subject", it) } }
